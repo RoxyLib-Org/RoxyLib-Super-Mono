@@ -4,7 +4,6 @@
   "type": "module",
   "packageManager": "pnpm@11.8.0",
   "scripts": {
-    "dev": "./target/release/ty-jk --dev",
     "x": "./x.sh",
     "deploy:orgel": "pnpm --filter roxys-orgel run deploy",
     "deploy:gateway": "pnpm --filter roxys-gateway run deploy",

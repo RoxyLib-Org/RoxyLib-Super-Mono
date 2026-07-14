@@ -75,7 +75,6 @@ fn stdin_is_tty() -> bool {
 }
 
 enum Mode {
-    Dev,
     Run { name: String, cmd: Vec<String> },
     Nx { target: String, extra: Vec<String> },
 }
@@ -84,13 +83,11 @@ fn parse_args() -> Mode {
     let args: Vec<String> = std::env::args().skip(1).collect();
     if args.is_empty() {
         eprintln!("usage: ty-jk <project:target> [args...]");
-        eprintln!("       ty-jk --dev");
         eprintln!("       ty-jk --run <name> <command...>");
         std::process::exit(1);
     }
 
     match args[0].as_str() {
-        "--dev" => Mode::Dev,
         "--run" => {
             if args.len() < 3 {
                 eprintln!("usage: ty-jk --run <name> <command...>");
@@ -217,34 +214,6 @@ fn run_pty(name: &str, cmd: &[String], cwd: &Path, tag: Option<&str>) -> Result<
     Ok(status.exit_code() as i32)
 }
 
-fn dev_mode() -> Result<()> {
-    let root = resolve_root();
-
-    let apps = vec![
-        ("roxys-orgel", root.join("apps/roxys-orgel")),
-        ("roxys-gateway", root.join("apps/roxys-gateway")),
-    ];
-
-    let mut handles = Vec::new();
-    for (name, cwd) in apps {
-        let name = name.to_string();
-        let cwd = cwd.clone();
-        let handle = thread::spawn(move || {
-            let cmd = vec!["npx".to_string(), "vite".to_string(), "--host".to_string()];
-            run_pty(&name, &cmd, &cwd, Some(&name))
-        });
-        handles.push(handle);
-    }
-
-    for handle in handles {
-        if let Ok(result) = handle.join() {
-            result?;
-        }
-    }
-
-    Ok(())
-}
-
 fn nx_mode(target: &str, extra: &[String]) -> Result<i32> {
     let root = resolve_root();
     let name = target.replace(':', "-");
@@ -267,10 +236,6 @@ fn cmd_mode(name: &str, cmd: &[String]) -> Result<i32> {
 fn main() -> Result<()> {
     let mode = parse_args();
     let code = match mode {
-        Mode::Dev => {
-            dev_mode()?;
-            0
-        }
         Mode::Run { name, cmd } => cmd_mode(&name, &cmd)?,
         Mode::Nx { target, extra } => nx_mode(&target, &extra)?,
     };

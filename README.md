@@ -69,10 +69,11 @@ RUSTC_WRAPPER='' cargo build --release -p ty-jk
 ### 本地开发
 
 ```bash
-pnpm dev
+pnpm x roxys-orgel:dev
+pnpm x roxys-gateway:dev
 ```
 
-并行启动 roxys-orgel 和 roxys-gateway 的 Vite dev server，ty-jk 通过 PTY 劫持终端输出并写入 `.agents/` 日志。
+通过 Nx 单独启动某个项目的 dev server，ty-jk 通过 PTY 劫持终端输出并写入 `.agents/` 日志。
 
 ### 构建
 
@@ -112,15 +113,16 @@ cd apps/roxys-orgel && npx wrangler d1 migrations apply roxys-orgel --remote
 
 | 命令 | 作用 |
 |------|------|
-| `pnpm dev` | 并行启动所有 app dev server |
+| `pnpm x roxys-orgel:dev` | 启动 orgel dev server |
+| `pnpm x roxys-gateway:dev` | 启动 gateway dev server |
+| `pnpm x <project>:<target>` | 通过 Nx 运行任意 target |
 | `pnpm build` | nx 构建全部项目 |
 | `pnpm lint` | Biome 全量检查 |
 | `pnpm drizzle` | Drizzle Kit CLI |
 | `pnpm deploy:orgel` | 构建 + 部署 orgel Worker |
 | `pnpm deploy:gateway` | 构建 + 部署 gateway Worker |
-| `./x.sh <project:target>` | 直接调用 nx target |
 
-`./x.sh` 是 shell shim — 有编译好的 ty-jk 二进制就用 Rust 版 (带 PTY)，否则 fallback 到 pnpm scripts。
+`pnpm x` 即 `./x.sh` — 有编译好的 ty-jk 二进制就用 Rust 版 (带 PTY)，否则 fallback 到 pnpm scripts。
 
 ## 环境变量
 
