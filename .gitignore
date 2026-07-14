@@ -39,8 +39,11 @@ lerna-debug.log*
 # misc
 .DS_Store
 
-# agents
-.agents/
+# agents (ignore logs/trash, track config and skills)
+.agents/*
+!.agents/AGENTS.md
+!.agents/CLAUDE.md
+!.agents/skills
 
 .nx/cache
 .nx/workspace-data

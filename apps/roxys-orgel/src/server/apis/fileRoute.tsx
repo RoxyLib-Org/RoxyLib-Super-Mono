@@ -16,7 +16,7 @@ import type { HonoCtxEnv } from "@/shared/types";
 export default async function fileRoute(
   c: Context<HonoCtxEnv>,
 ): Promise<Response> {
-  const handler = createRequestHandler({ createRouter });
+  const handler = createRequestHandler({ createRouter, request: c.req.raw });
 
   c.header("Content-Type", "text/html");
 
