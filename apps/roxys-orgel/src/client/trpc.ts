@@ -5,11 +5,14 @@ import type { AppRouter } from "@/server/trpc/router";
 
 export const trpc = createTRPCReact<AppRouter>();
 
+const isServer = typeof window === "undefined";
+
 export const trpcClient = trpc.createClient({
   links: [
     httpBatchLink({
-      url: "/api/trpc",
+      url: isServer ? "http://localhost/api/trpc" : "/api/trpc",
       transformer: superjson,
+      fetch: isServer ? (() => Promise.resolve(new Response("[]"))) : undefined,
     }),
   ],
 });

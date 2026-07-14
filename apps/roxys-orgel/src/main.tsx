@@ -20,6 +20,4 @@ app.use(
 // SSR catch-all
 app.get("/*", fileRoute);
 
-export default {
-  fetch: app.fetch,
-};
+export default app;

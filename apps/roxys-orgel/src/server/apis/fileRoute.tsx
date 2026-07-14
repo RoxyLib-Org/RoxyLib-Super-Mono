@@ -3,6 +3,7 @@ import {
   RouterServer,
   renderRouterToStream,
 } from "@tanstack/react-router/ssr/server";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Context } from "hono";
 import {
   Link,
@@ -11,6 +12,7 @@ import {
   ViteClient,
 } from "vite-ssr-components/react";
 import { createRouter } from "@/apps/router";
+import { trpc, trpcClient } from "@/client/trpc";
 import type { HonoCtxEnv } from "@/shared/types";
 
 export default async function fileRoute(
@@ -22,6 +24,8 @@ export default async function fileRoute(
 
   const res = handler(({ request, responseHeaders, router }) => {
     router.history.replace(c.req.url);
+
+    const queryClient = new QueryClient();
 
     return renderRouterToStream({
       request,
@@ -46,7 +50,11 @@ export default async function fileRoute(
 
           <body>
             <div id="root">
-              <RouterServer router={router} />
+              <trpc.Provider client={trpcClient} queryClient={queryClient}>
+                <QueryClientProvider client={queryClient}>
+                  <RouterServer router={router} />
+                </QueryClientProvider>
+              </trpc.Provider>
             </div>
           </body>
         </html>

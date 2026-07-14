@@ -12,9 +12,9 @@ enabled = false
 [[d1_databases]]
 binding = "DB"
 database_name = "roxys-orgel"
-database_id = "PLACEHOLDER"
+database_id = "7997e9d1-29cd-4746-9778-5c7a9c919077"
 migrations_dir = "../../drizzle"
 
 [[kv_namespaces]]
 binding = "KV"
-id = "PLACEHOLDER"
+id = "07556907bfe245c9a28817ea61418367"
