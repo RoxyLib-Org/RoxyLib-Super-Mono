@@ -1,0 +1,10 @@
+packages:
+  - "apps/*"
+  - "libs/*"
+  - "packages/*"
+allowBuilds:
+  '@swc/core': true
+  esbuild: true
+  nx: true
+  sharp: true
+  workerd: true

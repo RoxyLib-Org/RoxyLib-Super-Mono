@@ -1,0 +1,10 @@
+"$schema" = "node_modules/wrangler/config-schema.json"
+
+name = "roxys-gateway"
+compatibility_date = "2025-06-02"
+main = "./src/main.ts"
+compatibility_flags = ["nodejs_compat_v2"]
+workers_dev = true
+
+[vars]
+UPSTREAM_URL = "http://localhost:3000"

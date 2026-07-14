@@ -1,0 +1,39 @@
+{
+  "name": "roxylib-super-mono",
+  "version": "1.0.0",
+  "type": "module",
+  "packageManager": "pnpm@11.8.0",
+  "scripts": {
+    "dev": "./target/release/ty-jk --dev",
+    "x": "./x.sh",
+    "deploy:orgel": "pnpm --filter roxys-orgel run deploy",
+    "deploy:gateway": "pnpm --filter roxys-gateway run deploy",
+    "drizzle": "./target/release/ty-jk --run drizzle drizzle-kit",
+    "lint": "./target/release/ty-jk --run lint biome check",
+    "build": "./target/release/ty-jk --run build nx run-many --target=build"
+  },
+  "workspaces": [
+    "apps/*",
+    "libs/*",
+    "packages/*"
+  ],
+  "dependencies": {
+    "drizzle-orm": "^0.45.1",
+    "drizzle-zod": "^0.8.3",
+    "hono": "^4.12.8",
+    "wrangler": "^4.107.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.8",
+    "@cloudflare/workers-types": "^4.20260317.1",
+    "@nx/vite": "^22.6.0",
+    "@nx/web": "^22.6.0",
+    "@types/node": "^25.5.0",
+    "drizzle-kit": "^0.31.10",
+    "nx": "^22.6.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.1",
+    "vitest": "^4.1.0"
+  }
+}

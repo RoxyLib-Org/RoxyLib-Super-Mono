@@ -1,0 +1,17 @@
+{
+  "name": "roxys-gateway",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host",
+    "build": "vite build",
+    "deploy": "$npm_execpath run build && wrangler deploy",
+    "cf-typegen": "wrangler types --env-interface GatewayBindings"
+  },
+  "dependencies": {
+    "hono": "^4.12.8"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.43.0"
+  }
+}
