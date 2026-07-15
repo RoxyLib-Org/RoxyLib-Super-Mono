@@ -344,16 +344,16 @@ export function VinylGrid() {
     bgApi.start({ color: getVinylColor(next) });
   }, [activeDisc, coords, panToDisc, bgApi]);
 
-  // ── Pointer handlers (drag vs click by distance threshold) ────────────────
-  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  // ── Mouse handlers (desktop: drag + click via hoveredDiscIndex) ────────────
+  const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
   const DRAG_THRESHOLD = 5;
 
-  const handlePointerDown = useCallback(
-    (evt: React.PointerEvent) => {
+  const handleMouseDown = useCallback(
+    (evt: React.MouseEvent) => {
       setIsHold(true);
       isDraggingRef.current = false;
-      pointerStartRef.current = { x: evt.clientX, y: evt.clientY };
+      mouseStartRef.current = { x: evt.clientX, y: evt.clientY };
 
       if (progressRef.current > 0) {
         savedProgressRef.current = progressRef.current;
@@ -369,16 +369,15 @@ export function VinylGrid() {
     [progress, playerMode, playerSpring, bgApi],
   );
 
-  const handlePointerMove = useCallback(
-    (evt: React.PointerEvent) => {
+  const handleMouseMove = useCallback(
+    (evt: React.MouseEvent) => {
       if (!isHold) return;
 
-      if (!isDraggingRef.current && pointerStartRef.current) {
-        const dx = evt.clientX - pointerStartRef.current.x;
-        const dy = evt.clientY - pointerStartRef.current.y;
+      if (!isDraggingRef.current && mouseStartRef.current) {
+        const dx = evt.clientX - mouseStartRef.current.x;
+        const dy = evt.clientY - mouseStartRef.current.y;
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isDraggingRef.current = true;
-          (evt.currentTarget as HTMLElement).setPointerCapture(evt.pointerId);
         }
       }
 
@@ -393,16 +392,16 @@ export function VinylGrid() {
     [isHold, offsetX, offsetY, updateCenter],
   );
 
-  const handlePointerUp = useCallback(
-    (_evt: React.PointerEvent) => {
+  const handleMouseUp = useCallback(
+    (_evt: React.MouseEvent) => {
       setIsHold(false);
 
       if (!isDraggingRef.current) {
-        // Not a drag — use hovered disc (tracked via mouseenter/leave)
+        // Click — use hovered disc from mouseenter/leave
         if (hoveredDiscIndex >= 0) {
           handleDiscClick(hoveredDiscIndex);
         }
-        // Restore progress if changed on pointerDown
+        // Restore progress if changed on mouseDown
         if (
           progressRef.current !== savedProgressRef.current &&
           savedProgressRef.current > 0
@@ -490,71 +489,183 @@ export function VinylGrid() {
     ],
   );
 
-  // ── Pinch zoom (touch) ─────────────────────────────────────────────────────
+  // ── Touch handlers (mobile: drag + tap via touch target) ──────────────────
   const pinchRef = useRef<{ startDist: number; startProgress: number } | null>(
     null,
   );
+  const touchStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isTouchDraggingRef = useRef(false);
+  const touchedDiscRef = useRef(-1);
 
-  const handleTouchStart = useCallback((evt: React.TouchEvent) => {
-    if (evt.touches.length === 2) {
-      const dx = evt.touches[1].clientX - evt.touches[0].clientX;
-      const dy = evt.touches[1].clientY - evt.touches[0].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      pinchRef.current = {
-        startDist: dist,
-        startProgress: progressRef.current,
-      };
-    }
-  }, []);
-
-  const handleTouchMove = useCallback(
+  const handleTouchStart = useCallback(
     (evt: React.TouchEvent) => {
-      if (evt.touches.length !== 2 || !pinchRef.current) return;
-      evt.preventDefault();
+      if (evt.touches.length === 2) {
+        // Pinch start
+        const dx = evt.touches[1].clientX - evt.touches[0].clientX;
+        const dy = evt.touches[1].clientY - evt.touches[0].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        pinchRef.current = {
+          startDist: dist,
+          startProgress: progressRef.current,
+        };
+        return;
+      }
 
-      const dx = evt.touches[1].clientX - evt.touches[0].clientX;
-      const dy = evt.touches[1].clientY - evt.touches[0].clientY;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      const ratio = dist / pinchRef.current.startDist;
-      // Map pinch ratio to progress: spread = zoom in, pinch = zoom out
-      const newProgress = Math.max(
-        0,
-        Math.min(1, pinchRef.current.startProgress + (ratio - 1) * 0.5),
-      );
+      // Single touch — record start for drag threshold
+      const touch = evt.touches[0];
+      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+      isTouchDraggingRef.current = false;
+      setIsHold(true);
 
-      const prev = progressRef.current;
-      progressRef.current = newProgress;
-      savedProgressRef.current = newProgress;
-      progress.start(newProgress);
+      // Identify tapped disc via target DOM
+      const el = (evt.target as HTMLElement).closest("[data-disc-index]");
+      touchedDiscRef.current = el
+        ? Number.parseInt(el.getAttribute("data-disc-index") ?? "-1", 10)
+        : -1;
 
-      // Transition from level 1 → higher
-      if (prev === 0 && newProgress > 0) {
-        if (activeDisc >= 0) {
-          panToDisc(activeDisc);
-        } else {
-          const nearest = snapToNearest();
-          setActiveDisc(nearest);
+      if (progressRef.current > 0) {
+        savedProgressRef.current = progressRef.current;
+        if (progressRef.current !== 0.66) {
+          progress.start(0.66);
+        }
+        if (playerMode) {
+          playerSpring.start(0);
+          bgApi.start({ color: "rgb(0,0,0)" });
         }
       }
     },
-    [progress, activeDisc, panToDisc, snapToNearest],
+    [progress, playerMode, playerSpring, bgApi],
   );
 
-  const handleTouchEnd = useCallback(() => {
-    if (pinchRef.current) {
-      pinchRef.current = null;
-      scheduleSnap();
-    }
-  }, [scheduleSnap]);
+  const handleTouchMove = useCallback(
+    (evt: React.TouchEvent) => {
+      // Pinch zoom
+      if (evt.touches.length === 2 && pinchRef.current) {
+        evt.preventDefault();
+        const dx = evt.touches[1].clientX - evt.touches[0].clientX;
+        const dy = evt.touches[1].clientY - evt.touches[0].clientY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const ratio = dist / pinchRef.current.startDist;
+        const newProgress = Math.max(
+          0,
+          Math.min(1, pinchRef.current.startProgress + (ratio - 1) * 0.5),
+        );
+
+        const prev = progressRef.current;
+        progressRef.current = newProgress;
+        savedProgressRef.current = newProgress;
+        progress.start(newProgress);
+
+        if (prev === 0 && newProgress > 0) {
+          if (activeDisc >= 0) {
+            panToDisc(activeDisc);
+          } else {
+            const nearest = snapToNearest();
+            setActiveDisc(nearest);
+          }
+        }
+        return;
+      }
+
+      // Single finger drag
+      if (evt.touches.length !== 1 || !touchStartRef.current) return;
+      const touch = evt.touches[0];
+
+      if (!isTouchDraggingRef.current) {
+        const dx = touch.clientX - touchStartRef.current.x;
+        const dy = touch.clientY - touchStartRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
+          isTouchDraggingRef.current = true;
+        }
+      }
+
+      if (isTouchDraggingRef.current) {
+        const prevX = touchStartRef.current.x;
+        const prevY = touchStartRef.current.y;
+        touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+        offsetRef.current[0] += touch.clientX - prevX;
+        offsetRef.current[1] += touch.clientY - prevY;
+        offsetX.start(offsetRef.current[0]);
+        offsetY.start(offsetRef.current[1]);
+        updateCenter();
+      }
+    },
+    [
+      progress,
+      activeDisc,
+      panToDisc,
+      snapToNearest,
+      offsetX,
+      offsetY,
+      updateCenter,
+    ],
+  );
+
+  const handleTouchEnd = useCallback(
+    (_evt: React.TouchEvent) => {
+      // Pinch end
+      if (pinchRef.current) {
+        pinchRef.current = null;
+        scheduleSnap();
+        return;
+      }
+
+      setIsHold(false);
+
+      if (!isTouchDraggingRef.current) {
+        // Tap — use disc identified at touchStart
+        if (touchedDiscRef.current >= 0) {
+          handleDiscClick(touchedDiscRef.current);
+        }
+        // Restore progress
+        if (
+          progressRef.current !== savedProgressRef.current &&
+          savedProgressRef.current > 0
+        ) {
+          progressRef.current = savedProgressRef.current;
+          progress.start(savedProgressRef.current);
+          if (savedProgressRef.current >= 1 && activeDisc >= 0) {
+            enterPlayerMode(activeDisc);
+          }
+        }
+        return;
+      }
+
+      // Drag end
+      const isLevel1 =
+        savedProgressRef.current === 0 || progressRef.current === 0;
+      if (isLevel1) {
+        clampOffset();
+        updateCenter();
+      } else {
+        const snapped = snapToNearest();
+        setActiveDisc(snapped);
+        progressRef.current = savedProgressRef.current;
+        progress.start(savedProgressRef.current);
+        if (savedProgressRef.current >= 1) {
+          enterPlayerMode(snapped);
+        }
+      }
+    },
+    [
+      scheduleSnap,
+      snapToNearest,
+      clampOffset,
+      updateCenter,
+      progress,
+      enterPlayerMode,
+      activeDisc,
+      handleDiscClick,
+    ],
+  );
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
       className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none"
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
-      onLostPointerCapture={handlePointerUp}
+      onMouseDown={handleMouseDown}
+      onMouseMove={handleMouseMove}
+      onMouseUp={handleMouseUp}
       onWheel={handleWheel}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
