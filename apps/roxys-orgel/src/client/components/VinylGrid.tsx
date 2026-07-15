@@ -1,6 +1,7 @@
-import { useSpringValue } from "@react-spring/web";
+import { animated, useSpring, useSpringValue } from "@react-spring/web";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CustomCursor } from "./CustomCursor";
+import { TransportControls } from "./TransportControls";
 import { HEX_RADIUS, LiquidGlassFilter, VinylDisc } from "./VinylDisc";
 
 const { sqrt, pow } = Math;
@@ -76,6 +77,17 @@ function findNearestDisc(
   return nearest;
 }
 
+/** Vinyl color palettes */
+const VINYL_PALETTES: [string, string][] = [
+  ["oklch(0.55 0.25 25)", "oklch(0.45 0.22 25)"],
+  ["oklch(0.85 0.2 90)", "oklch(0.75 0.17 90)"],
+  ["oklch(0.22 0.01 260)", "oklch(0.15 0.005 260)"],
+];
+
+function getVinylColor(index: number): string {
+  return VINYL_PALETTES[index % 3][0];
+}
+
 export function VinylGrid() {
   const coords = useMemo(
     () => generateHexPositions(HEX_RADIUS, DISC_COUNT),
@@ -87,10 +99,18 @@ export function VinylGrid() {
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
   const offsetRef = useRef([0, 0]);
+  const zoomRef = useRef(0);
 
   const springConfig = { tension: 170, friction: 24 };
   const offsetX = useSpringValue(0, { config: springConfig });
   const offsetY = useSpringValue(0, { config: springConfig });
+  const zoom = useSpringValue(0, { config: { tension: 200, friction: 26 } });
+
+  // Background color spring
+  const [bgSpring, bgApi] = useSpring(() => ({
+    color: "rgb(0,0,0)",
+    config: { tension: 200, friction: 26 },
+  }));
 
   const updateCenter = useCallback(() => {
     const nearest = findNearestDisc(
@@ -117,7 +137,6 @@ export function VinylGrid() {
   const handleCenter = useCallback(
     (index: number) => {
       if (index === centerDiscIndex) {
-        // Clicking the current center disc toggles play/pause
         setIsPlaying((p) => !p);
         return;
       }
@@ -127,10 +146,23 @@ export function VinylGrid() {
       offsetY.start(-cy);
       setCenterDiscIndex(index);
       setIsPlaying(true);
+      // Update background color for new center
+      if (zoomRef.current > 0.5) {
+        bgApi.start({ color: getVinylColor(index) });
+      }
     },
-    [coords, offsetX, offsetY, centerDiscIndex],
+    [coords, offsetX, offsetY, centerDiscIndex, bgApi],
   );
 
+  const handlePrev = useCallback(() => {
+    const prev = (centerDiscIndex - 1 + coords.length) % coords.length;
+    handleCenter(prev);
+  }, [centerDiscIndex, coords.length, handleCenter]);
+
+  const handleNext = useCallback(() => {
+    const next = (centerDiscIndex + 1) % coords.length;
+    handleCenter(next);
+  }, [centerDiscIndex, coords.length, handleCenter]);
 
   const handlePointerDown = useCallback(() => {
     setIsHold(true);
@@ -155,6 +187,24 @@ export function VinylGrid() {
     [isHold, offsetX, offsetY, updateCenter],
   );
 
+  const handleWheel = useCallback(
+    (evt: React.WheelEvent) => {
+      evt.preventDefault();
+      const delta = evt.deltaY > 0 ? 0.05 : -0.05;
+      const next = Math.max(0, Math.min(1, zoomRef.current + delta));
+      zoomRef.current = next;
+      zoom.start(next);
+
+      // Background: lerp to vinyl color when zoomed in
+      if (next > 0.5) {
+        bgApi.start({ color: getVinylColor(centerDiscIndex) });
+      } else {
+        bgApi.start({ color: "rgb(0,0,0)" });
+      }
+    },
+    [zoom, bgApi, centerDiscIndex],
+  );
+
   return (
     <div
       className="relative w-full h-screen overflow-hidden touch-none select-none cursor-none"
@@ -162,12 +212,16 @@ export function VinylGrid() {
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
       onPointerMove={handlePointerMove}
+      onWheel={handleWheel}
     >
       {/* SVG filter definition for liquid glass distortion */}
       <LiquidGlassFilter />
 
-      {/* Solid black background */}
-      <div className="absolute inset-0 bg-black" />
+      {/* Animated background */}
+      <animated.div
+        className="absolute inset-0"
+        style={{ backgroundColor: bgSpring.color }}
+      />
 
       {/* Disc grid layer */}
       <div className="relative w-full h-full">
@@ -176,6 +230,7 @@ export function VinylGrid() {
             key={idx}
             coord={coord}
             offset={[offsetX, offsetY]}
+            zoom={zoom}
             index={idx}
             isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
@@ -184,6 +239,16 @@ export function VinylGrid() {
           />
         ))}
       </div>
+
+      {/* Transport controls — visible when zoomed in */}
+      <TransportControls
+        zoom={zoom}
+        isPlaying={isPlaying}
+        onPlayPause={() => setIsPlaying((p) => !p)}
+        onPrev={handlePrev}
+        onNext={handleNext}
+      />
+
       <CustomCursor
         isPlaying={isPlaying}
         hoveredDiscIndex={hoveredDiscIndex}
