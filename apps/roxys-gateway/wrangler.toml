@@ -13,16 +13,3 @@ enabled = true
 [observability.logs]
 enabled = true
 invocation_logs = true
-
-[vars]
-UPSTREAM_URL = "http://localhost:3000"
-
-[[vpc_services]]
-binding = "VPC_PAN"
-service_id = "019f6530-9f19-7ea0-af00-41e227177392"
-remote = true
-
-[[vpc_services]]
-binding = "VPC_BOOK"
-service_id = "019f6530-a0ef-75a1-8cc3-f52d2f6d2d93"
-remote = true
