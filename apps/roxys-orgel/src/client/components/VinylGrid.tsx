@@ -119,10 +119,11 @@ export function VinylGrid() {
 
   const [isHold, setIsHold] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [atLevel1, setAtLevel1] = useState(false);
   const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
-  const [playingDiscIndex, setPlayingDiscIndex] = useState(-1); // Track which disc is playing
+  const [_playingDiscIndex, setPlayingDiscIndex] = useState(-1);
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
   const savedProgressRef = useRef(0.66);
@@ -203,10 +204,7 @@ export function VinylGrid() {
       if (snapped >= 1) {
         enterPlayerMode(centerDiscIndex);
       }
-      // Level 1: stop playback
-      if (snapped === 0) {
-        setIsPlaying(false);
-      }
+      setAtLevel1(snapped === 0);
     }, 150);
   }, [progress, enterPlayerMode, centerDiscIndex]);
 
@@ -223,6 +221,7 @@ export function VinylGrid() {
         setCenterDiscIndex(index);
         setPlayingDiscIndex(index);
         setIsPlaying(true);
+        setAtLevel1(false);
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
         progress.start(0.66);
@@ -356,15 +355,18 @@ export function VinylGrid() {
       savedProgressRef.current = next;
       progress.start(next);
 
-      // Transition from level 1 → higher: auto-center on playing disc
+      // Transition from level 1 → higher: snap to nearest disc at screen center
       if (prev === 0 && next > 0) {
-        const target =
-          playingDiscIndex >= 0 ? playingDiscIndex : centerDiscIndex;
-        const [cx, cy] = coords[target];
+        const nearest = findNearestDisc(
+          coords,
+          offsetRef.current[0],
+          offsetRef.current[1],
+        );
+        const [cx, cy] = coords[nearest];
         offsetRef.current = [-cx, -cy];
         offsetX.start(-cx);
         offsetY.start(-cy);
-        setCenterDiscIndex(target);
+        setCenterDiscIndex(nearest);
       }
 
       scheduleSnap();
@@ -374,8 +376,6 @@ export function VinylGrid() {
       playerMode,
       exitPlayerMode,
       scheduleSnap,
-      playingDiscIndex,
-      centerDiscIndex,
       coords,
       offsetX,
       offsetY,
@@ -407,7 +407,7 @@ export function VinylGrid() {
             progress={progress}
             playerMode={playerSpring}
             index={idx}
-            isPlaying={isPlaying}
+            isPlaying={isPlaying && !atLevel1}
             isCenterDisc={idx === centerDiscIndex}
             onCenter={handleCenter}
             onHover={setHoveredDiscIndex}
