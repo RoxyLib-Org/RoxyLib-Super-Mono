@@ -8,7 +8,11 @@ compatibility_flags = ["nodejs_compat_v2"]
 workers_dev = true
 
 [observability]
-enabled = false
+enabled = true
+
+[observability.logs]
+enabled = true
+invocation_logs = true
 
 [[d1_databases]]
 binding = "DB"
