@@ -181,12 +181,6 @@ export function VinylGrid() {
     color: "rgb(0,0,0)",
     config: { tension: 200, friction: 26 },
   }));
-  const playingSpring = useSpringValue(0, {
-    config: { tension: 120, friction: 20 },
-  });
-  useEffect(() => {
-    playingSpring.start(isPlaying ? 1 : 0);
-  }, [isPlaying, playingSpring]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
@@ -687,7 +681,7 @@ export function VinylGrid() {
       />
 
       {/* Aurora flowing light effect - visible in player mode */}
-      <AuroraBackground visible={playingSpring} color={bgSpring.color} />
+      <AuroraBackground visible={playerSpring} color={bgSpring.color} />
 
       {/* Grid layer — all drag/click/zoom gestures live here */}
       <div
