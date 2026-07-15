@@ -134,6 +134,7 @@ export function VinylGrid() {
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeDisc, setActiveDisc] = useState(-1); // -1 = none
   const [playerMode, setPlayerMode] = useState(false);
+  const [atLevel1, setAtLevel1] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
 
@@ -236,6 +237,7 @@ export function VinylGrid() {
         panToDisc(target);
         enterPlayerMode(target);
       }
+      setAtLevel1(snapped === 0);
     }, 150);
   }, [progress, enterPlayerMode, activeDisc, coords, panToDisc]);
 
@@ -252,6 +254,7 @@ export function VinylGrid() {
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
         progress.start(0.66);
+        setAtLevel1(false);
         return;
       }
 
@@ -433,6 +436,7 @@ export function VinylGrid() {
         isPlaying={isPlaying}
         hoveredDiscIndex={hoveredDiscIndex}
         centerDiscIndex={centerDiscIndex}
+        compact={atLevel1}
       />
     </div>
   );

@@ -11,6 +11,8 @@ interface CustomCursorProps {
   hoveredDiscIndex: number;
   /** The disc index currently at the center (playing) */
   centerDiscIndex: number;
+  /** Whether at level 1 (compact browse mode) */
+  compact?: boolean;
 }
 
 /** One full rotation every N milliseconds */
@@ -20,6 +22,7 @@ export function CustomCursor({
   isPlaying,
   hoveredDiscIndex,
   centerDiscIndex,
+  compact = false,
 }: CustomCursorProps) {
   const posRef = useRef({ x: 0, y: 0 });
   const [pos, setPos] = useState({ x: 0, y: 0 });
@@ -40,14 +43,16 @@ export function CustomCursor({
   const isHoveringDisc = hoveredDiscIndex >= 0;
   const showPause =
     isPlaying && isHoveringDisc && hoveredDiscIndex === centerDiscIndex;
-  const label = showPause ? "PAUSE" : "PLAY";
+  const _label = showPause ? "PAUSE" : "PLAY";
   // Cursor text spins when showing PLAY, stops for PAUSE
   const shouldSpin = !showPause;
 
   // Size + text opacity spring
   const visible = mouseInPage;
+  const smallSize = compact ? 16 : SMALL_SIZE;
+  const largeSize = compact ? 60 : LARGE_SIZE;
   const spring = useSpring({
-    size: !visible ? 0 : isHoveringDisc ? LARGE_SIZE : SMALL_SIZE,
+    size: !visible ? 0 : isHoveringDisc ? largeSize : smallSize,
     textOpacity: !visible ? 0 : isHoveringDisc ? 1 : 0,
     opacity: visible ? 1 : 0,
     config: { mass: 1, tension: 320, friction: 22 },
@@ -142,7 +147,9 @@ export function CustomCursor({
         className="relative w-full h-full"
         style={{
           transformStyle: "preserve-3d",
-          transform: flipSpring.rotateY.to((r) => `rotateZ(45deg) rotateY(${r}deg)`),
+          transform: flipSpring.rotateY.to(
+            (r) => `rotateZ(45deg) rotateY(${r}deg)`,
+          ),
         }}
       >
         {/* PLAY face (front) */}
