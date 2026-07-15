@@ -100,7 +100,7 @@ export function VinylDisc({
   const [x, y] = useMemo(() => {
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    const COMPRESS_K = 0.0003;
+    const COMPRESS_K = 0.0005;
     const SPACING_MIN = 0.7;
     const SPACING_MAX = 1.5;
     return [
@@ -260,13 +260,7 @@ export function VinylDisc({
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
           background: vinylBase,
-          // Border: visible at low progress (compact mode), fades as progress increases
-          border: progress.to((p) => {
-            const borderWidth = 4 * max(0, 1 - p * 2);
-            return borderWidth > 0.5
-              ? `${borderWidth}px solid ${vinylBase}`
-              : "none";
-          }),
+          border: "none",
           boxShadow: progress.to((p) => {
             const o = min(p * 2, 1);
             return `0 8px 32px rgba(0,0,0,${0.5 * o}), inset 0 3px 5px rgba(255,255,255,${0.3 * o}), inset 0 -3px 6px rgba(0,0,0,${0.5 * o})`;
