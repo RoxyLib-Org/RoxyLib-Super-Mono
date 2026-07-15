@@ -398,14 +398,30 @@ export function VinylGrid() {
       setIsHold(false);
 
       if (!isDraggingRef.current) {
-        // Click — use elementFromPoint since capture redirects target
-        const el = document.elementFromPoint(evt.clientX, evt.clientY);
-        const disc = el?.closest("[data-vinyl-disc]");
-        if (disc) {
-          const idx = Number(disc.getAttribute("data-disc-index"));
-          if (!Number.isNaN(idx)) {
-            handleDiscClick(idx);
+        // Click — compute which disc was clicked via coordinates
+        const container = evt.currentTarget as HTMLElement;
+        const rect = container.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        // Pointer position relative to viewport center, adjusted for scale
+        const scale = viewportScale || 1;
+        const clickX = (evt.clientX - centerX) / scale - offsetRef.current[0];
+        const clickY = (evt.clientY - centerY) / scale - offsetRef.current[1];
+        // Find the nearest disc to click point
+        const hitRadius = HEX_RADIUS * 0.9; // generous hit area
+        let hitIdx = -1;
+        let minDist = hitRadius;
+        for (let i = 0; i < coords.length; i++) {
+          const dx = clickX - coords[i][0];
+          const dy = clickY - coords[i][1];
+          const d = Math.sqrt(dx * dx + dy * dy);
+          if (d < minDist) {
+            minDist = d;
+            hitIdx = i;
           }
+        }
+        if (hitIdx >= 0) {
+          handleDiscClick(hitIdx);
         }
         // Restore progress if changed on pointerDown
         if (
@@ -446,6 +462,8 @@ export function VinylGrid() {
       enterPlayerMode,
       activeDisc,
       handleDiscClick,
+      viewportScale,
+      coords,
     ],
   );
 
