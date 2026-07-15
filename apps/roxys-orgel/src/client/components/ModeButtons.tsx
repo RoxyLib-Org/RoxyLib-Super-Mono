@@ -64,44 +64,62 @@ export function ModeButtons({
           ),
         }}
       >
-        {/* Minimize → level 1 */}
+        {/* Minimize → level 1 (red, dash icon in 7x7 dot matrix) */}
         <button
           type="button"
           onClick={onMinimize}
           aria-label="Minimize"
-          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-20 h-20 rounded-full bg-red-500 hover:bg-red-400 flex items-center justify-center cursor-pointer transition-colors"
+          style={{
+            boxShadow:
+              "inset 0 1px 2px rgba(255,255,255,0.4), 0 2px 8px rgba(0,0,0,0.4)",
+            border: "1.5px solid rgba(255,255,255,0.3)",
+          }}
         >
-          <svg
-            width="28"
-            height="28"
-            viewBox="0 0 16 16"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-          >
-            <path d="M3 8h10" />
+          {/* 7x7 dot matrix: horizontal dash (row 4, cols 2-6) */}
+          <svg width="21" height="21" viewBox="0 0 7 7">
+            <circle cx="1.5" cy="3.5" r="0.45" fill="white" />
+            <circle cx="2.5" cy="3.5" r="0.45" fill="white" />
+            <circle cx="3.5" cy="3.5" r="0.45" fill="white" />
+            <circle cx="4.5" cy="3.5" r="0.45" fill="white" />
+            <circle cx="5.5" cy="3.5" r="0.45" fill="white" />
           </svg>
         </button>
 
-        {/* Maximize → level 4 (player) */}
+        {/* Maximize → level 4 (white, square icon in 7x7 dot matrix) */}
         <button
           type="button"
           onClick={onMaximize}
           aria-label="Maximize"
-          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center cursor-pointer transition-colors"
+          style={{
+            boxShadow:
+              "inset 0 1px 2px rgba(255,255,255,0.5), 0 2px 8px rgba(0,0,0,0.4)",
+            border: "1.5px solid rgba(255,255,255,0.3)",
+          }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 14 14"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M2 2h10v10H2z" />
+          {/* 7x7 dot matrix: square outline (rows 1&7 full, rows 2-6 edges) */}
+          <svg width="21" height="21" viewBox="0 0 7 7">
+            {/* Top row */}
+            <circle cx="1.5" cy="1.5" r="0.45" fill="black" />
+            <circle cx="2.5" cy="1.5" r="0.45" fill="black" />
+            <circle cx="3.5" cy="1.5" r="0.45" fill="black" />
+            <circle cx="4.5" cy="1.5" r="0.45" fill="black" />
+            <circle cx="5.5" cy="1.5" r="0.45" fill="black" />
+            {/* Left edge */}
+            <circle cx="1.5" cy="2.5" r="0.45" fill="black" />
+            <circle cx="1.5" cy="3.5" r="0.45" fill="black" />
+            <circle cx="1.5" cy="4.5" r="0.45" fill="black" />
+            {/* Right edge */}
+            <circle cx="5.5" cy="2.5" r="0.45" fill="black" />
+            <circle cx="5.5" cy="3.5" r="0.45" fill="black" />
+            <circle cx="5.5" cy="4.5" r="0.45" fill="black" />
+            {/* Bottom row */}
+            <circle cx="1.5" cy="5.5" r="0.45" fill="black" />
+            <circle cx="2.5" cy="5.5" r="0.45" fill="black" />
+            <circle cx="3.5" cy="5.5" r="0.45" fill="black" />
+            <circle cx="4.5" cy="5.5" r="0.45" fill="black" />
+            <circle cx="5.5" cy="5.5" r="0.45" fill="black" />
           </svg>
         </button>
       </animated.div>
