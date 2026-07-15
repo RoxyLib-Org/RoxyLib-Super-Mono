@@ -75,52 +75,54 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
 
   return (
     <animated.div
-      className="absolute left-1/2 -translate-x-1/2 pointer-events-none flex items-center gap-3"
+      className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
       style={{
         bottom: "15%",
         opacity: spring.opacity,
       }}
     >
-      {/* Zoom number */}
-      <div className="text-white/90 text-sm font-mono tracking-wider tabular-nums">
-        x{displayZoom}
-      </div>
-
-      {/* Tick ruler */}
       <div
-        className="relative overflow-hidden"
-        style={{
-          width: "3px",
-          height: "60px",
-          maskImage:
-            "linear-gradient(to bottom, transparent, white 30%, white 70%, transparent)",
-          WebkitMaskImage:
-            "linear-gradient(to bottom, transparent, white 30%, white 70%, transparent)",
-        }}
+        className="relative flex items-center justify-center"
+        style={{ width: "80px", height: "60px" }}
       >
+        {/* Tick ruler — full width behind text */}
         <div
-          className="absolute w-full"
+          className="absolute inset-0 overflow-hidden"
           style={{
-            top: "50%",
-            transform: `translateY(-${tickOffset % (TICK_HEIGHT * 10)}px)`,
+            maskImage:
+              "linear-gradient(to bottom, transparent, white 25%, white 75%, transparent)",
+            WebkitMaskImage:
+              "linear-gradient(to bottom, transparent, white 25%, white 75%, transparent)",
           }}
         >
-          {ticks.map((tick, i) => (
-            <div
-              key={i}
-              className="absolute w-full"
-              style={{
-                top: `${tick.pos}px`,
-                height: "2px",
-                backgroundColor: tick.isFull
-                  ? "rgba(239, 68, 68, 0.9)"
-                  : tick.isHalf
-                    ? "rgba(255, 255, 255, 0.6)"
-                    : "rgba(255, 255, 255, 0.2)",
-                transform: `scaleX(${tick.isFull ? 1 : tick.isHalf ? 0.7 : 0.4})`,
-              }}
-            />
-          ))}
+          <div
+            className="absolute inset-x-0"
+            style={{
+              top: "50%",
+              transform: `translateY(-${tickOffset % (TICK_HEIGHT * 10)}px)`,
+            }}
+          >
+            {ticks.map((tick, i) => (
+              <div
+                key={i}
+                className="absolute left-0 right-0"
+                style={{
+                  top: `${tick.pos}px`,
+                  height: tick.isFull ? "2px" : "1px",
+                  backgroundColor: tick.isFull
+                    ? "rgba(239, 68, 68, 0.5)"
+                    : tick.isHalf
+                      ? "rgba(255, 255, 255, 0.3)"
+                      : "rgba(255, 255, 255, 0.1)",
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        {/* Zoom number — on top */}
+        <div className="relative text-white/90 text-sm font-mono tracking-wider tabular-nums">
+          x{displayZoom}
         </div>
       </div>
     </animated.div>
