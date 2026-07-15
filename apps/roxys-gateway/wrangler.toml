@@ -10,7 +10,7 @@ workers_dev = true
 [vars]
 UPSTREAM_URL = "http://localhost:3000"
 
-[[vpc_networks]]
+[[vpc_services]]
 binding = "VPC"
-tunnel_id = "f6efe1c6-f14d-4447-a696-f436c0e1f252"
+service_id = "019f64e4-abce-7b13-b090-e980b313f5da"
 remote = true
