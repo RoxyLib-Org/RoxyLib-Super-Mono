@@ -394,34 +394,13 @@ export function VinylGrid() {
   );
 
   const handlePointerUp = useCallback(
-    (evt: React.PointerEvent) => {
+    (_evt: React.PointerEvent) => {
       setIsHold(false);
 
       if (!isDraggingRef.current) {
-        // Click — compute which disc was clicked via coordinates
-        const container = evt.currentTarget as HTMLElement;
-        const rect = container.getBoundingClientRect();
-        const centerX = rect.left + rect.width / 2;
-        const centerY = rect.top + rect.height / 2;
-        // Pointer position relative to viewport center, adjusted for scale
-        const scale = viewportScale || 1;
-        const clickX = (evt.clientX - centerX) / scale - offsetRef.current[0];
-        const clickY = (evt.clientY - centerY) / scale - offsetRef.current[1];
-        // Find the nearest disc to click point
-        const hitRadius = HEX_RADIUS * 0.9; // generous hit area
-        let hitIdx = -1;
-        let minDist = hitRadius;
-        for (let i = 0; i < coords.length; i++) {
-          const dx = clickX - coords[i][0];
-          const dy = clickY - coords[i][1];
-          const d = Math.sqrt(dx * dx + dy * dy);
-          if (d < minDist) {
-            minDist = d;
-            hitIdx = i;
-          }
-        }
-        if (hitIdx >= 0) {
-          handleDiscClick(hitIdx);
+        // Not a drag — use hovered disc (tracked via mouseenter/leave)
+        if (hoveredDiscIndex >= 0) {
+          handleDiscClick(hoveredDiscIndex);
         }
         // Restore progress if changed on pointerDown
         if (
@@ -461,20 +440,10 @@ export function VinylGrid() {
       progress,
       enterPlayerMode,
       activeDisc,
-      viewportScale,
+      hoveredDiscIndex,
       handleDiscClick,
-      coords.length,
-      coords,
     ],
   );
-
-  // Suppress click events that were actually drags
-  const handleClickCapture = useCallback((evt: React.MouseEvent) => {
-    if (isDraggingRef.current) {
-      evt.stopPropagation();
-      evt.preventDefault();
-    }
-  }, []);
 
   // ── Wheel handler ──────────────────────────────────────────────────────────
   const handleWheel = useCallback(
@@ -586,7 +555,6 @@ export function VinylGrid() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onLostPointerCapture={handlePointerUp}
-      onClickCapture={handleClickCapture}
       onWheel={handleWheel}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -615,7 +583,6 @@ export function VinylGrid() {
             isCenterDisc={idx === centerDiscIndex}
             isPlayingDisc={idx === activeDisc}
             onHover={setHoveredDiscIndex}
-            onClick={handleDiscClick}
           />
         ))}
       </div>
