@@ -6,7 +6,7 @@ const { sqrt, min, max, pow } = Math;
 export const DISC_SIZE = 300;
 
 /** Gap between discs (center-to-center = DISC_SIZE + GAP) */
-export const DISC_GAP = 60;
+export const DISC_GAP = 100;
 
 /** Hex grid spacing radius (half the center-to-center distance) */
 export const HEX_RADIUS = (DISC_SIZE + DISC_GAP) / 2;
@@ -66,10 +66,25 @@ const DISC_ROTATION_PERIOD = 8000;
 
 export function VinylDisc({ coord, offset, index, isPlaying, isCenterDisc, onCenter, onHover }: VinylDiscProps) {
   const [x, y] = useMemo(
-    () => [
-      offset[0].to((v) => v + coord[0]),
-      offset[1].to((v) => v + coord[1]),
-    ],
+    () => {
+      // Raw position relative to viewport center
+      const rawX = offset[0].to((v) => v + coord[0]);
+      const rawY = offset[1].to((v) => v + coord[1]);
+      // Linear radial compression: position pulls toward center
+      const COMPRESS_K = 0.0003;
+      return [
+        to([rawX, rawY], (xv, yv) => {
+          const dist = sqrt(xv * xv + yv * yv);
+          const scale = max(0.4, 1 - COMPRESS_K * dist);
+          return xv * scale;
+        }),
+        to([rawX, rawY], (xv, yv) => {
+          const dist = sqrt(xv * xv + yv * yv);
+          const scale = max(0.4, 1 - COMPRESS_K * dist);
+          return yv * scale;
+        }),
+      ];
+    },
     [offset, coord],
   );
 
@@ -176,12 +191,17 @@ export function VinylDisc({ coord, offset, index, isPlaying, isCenterDisc, onCen
           width: distanceFromCenter.to((d) => {
             const t = min(d / maxVisibleDist, 1);
             const s = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            return `${max(s, 0.2) * DISC_SIZE}px`;
+            // Rapid fade to 0 size in the outer 20% of visible range
+            const fadeStart = 0.8;
+            const fade = t < fadeStart ? 1 : max(0, 1 - (t - fadeStart) / (1 - fadeStart));
+            return `${max(s * fade, 0) * DISC_SIZE}px`;
           }),
           height: distanceFromCenter.to((d) => {
             const t = min(d / maxVisibleDist, 1);
             const s = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            return `${max(s, 0.2) * DISC_SIZE}px`;
+            const fadeStart = 0.8;
+            const fade = t < fadeStart ? 1 : max(0, 1 - (t - fadeStart) / (1 - fadeStart));
+            return `${max(s * fade, 0) * DISC_SIZE}px`;
           }),
           background: vinylBase,
           boxShadow:
@@ -229,12 +249,18 @@ export function VinylDisc({ coord, offset, index, isPlaying, isCenterDisc, onCen
           />
 
           {/* Cover art */}
-          <div
+          <animated.div
             className="absolute rounded-full overflow-hidden bg-cover bg-center"
             style={{
               inset: "8%",
               backgroundImage: `url(${coverUrl})`,
               boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
+              transform: distanceFromCenter.to((d) => {
+                const t = min(d / maxVisibleDist, 1);
+                const fadeStart = 0.8;
+                const fade = t < fadeStart ? 1 : max(0, 1 - (t - fadeStart) / (1 - fadeStart));
+                return `scale(${fade})`;
+              }),
             }}
           />
         </animated.div>
