@@ -244,18 +244,17 @@ export function VinylDisc({
           // Size: continuous function of distance and progress
           // p=0: all uniform (0.55x compact), p=1: center=1x, far=0
           // Smooth transition based on distance, no discrete jumps
-          width: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
+          width: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
-            // Gaussian: center big, edge small
-            const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            // Steep gaussian: center = 1.4, drops off quickly
+            const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
             const uniform = 0.55;
-            // Lerp from uniform to gaussian based on progress
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
-          height: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
+          height: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
-            const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
             const uniform = 0.55;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
