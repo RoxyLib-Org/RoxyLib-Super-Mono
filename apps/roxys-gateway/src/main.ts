@@ -11,14 +11,10 @@ const app = new Hono();
 app.all("*", async (c) => {
   const host = new URL(c.req.url).hostname;
 
-  // Host-based routing — direct domain match
   if (host === "pan.roxylib.com") return proxy(c, "pan");
   if (host === "book.roxylib.com") return proxy(c, "book");
 
-  // workers.dev fallback: cookie-based
-  const cookies = parseCookie(c.req.header("Cookie") || "");
-  const service = cookies["isRoxyBook"] === "true" ? "book" : "pan";
-  return proxy(c, service);
+  return c.text("404 Not Found", 404);
 });
 
 async function proxy(c: Context, service: keyof typeof ORIGINS): Promise<Response> {
@@ -43,17 +39,6 @@ async function proxy(c: Context, service: keyof typeof ORIGINS): Promise<Respons
   });
 
   return new Response(res.body, { status: res.status, headers: res.headers });
-}
-
-function parseCookie(header: string): Record<string, string> {
-  const result: Record<string, string> = {};
-  for (const pair of header.split(";")) {
-    const idx = pair.indexOf("=");
-    if (idx > 0) {
-      result[pair.slice(0, idx).trim()] = pair.slice(idx + 1).trim();
-    }
-  }
-  return result;
 }
 
 export default app;
