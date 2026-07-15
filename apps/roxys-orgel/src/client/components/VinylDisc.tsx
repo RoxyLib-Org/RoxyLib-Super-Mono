@@ -94,25 +94,20 @@ export function VinylDisc({
   onCenter,
   onHover,
 }: VinylDiscProps) {
-  // Position with progress-based radial compression
+  // Position: progress controls radial compression
+  // p=0 → no compression, p=1 → max compression (outer discs pulled in)
   const [x, y] = useMemo(() => {
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    // Base compression always active; progress adds more
-    const BASE_K = 0.00015;
-    const EXTRA_K = 0.00015;
+    const COMPRESS_K = 0.0003;
     return [
       to([rawX, rawY, progress], (xv, yv, p) => {
         const dist = sqrt(xv * xv + yv * yv);
-        const k = BASE_K + EXTRA_K * p;
-        const scale = max(0.5, 1 - k * dist);
-        return xv * scale;
+        return xv * max(0.4, 1 - COMPRESS_K * p * dist);
       }),
       to([rawX, rawY, progress], (xv, yv, p) => {
         const dist = sqrt(xv * xv + yv * yv);
-        const k = BASE_K + EXTRA_K * p;
-        const scale = max(0.5, 1 - k * dist);
-        return yv * scale;
+        return yv * max(0.4, 1 - COMPRESS_K * p * dist);
       }),
     ];
   }, [offset, coord, progress]);
@@ -235,34 +230,31 @@ export function VinylDisc({
         onMouseLeave={handleMouseLeave}
         className="rounded-full overflow-hidden flex items-center justify-center relative"
         style={{
-          // Size: progress interpolates between compact (0.55) and full gaussian
+          // Size controlled by 3 axes of progress:
+          // 1. Variation: p=0 → all same size, p=1 → center big/edge small (gaussian)
+          // 2. Overall scale: p=0 → small (0.5x), p=1 → large (1.1x)
+          // 3. Player mode: center disc grows more
           width: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
             const t = min(d / maxVisibleDist, 1);
-            // Original gaussian size at high progress
-            const gaussianSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            // Compact: uniform smaller size
-            const compactSize = 0.55;
-            // Lerp: at p=0 → compact, at p=0.66 → gaussian, at p=1 → slightly bigger
-            const s =
-              compactSize + (gaussianSize - compactSize) * min(p / 0.66, 1);
-            const finalSize = p > 0.66 ? s + (p - 0.66) * 0.3 : s;
-            // Player mode: center disc slightly larger
-            if (isCenterDisc && pm > 0) {
-              return `${(finalSize + pm * 0.15) * DISC_SIZE}px`;
-            }
-            return `${max(finalSize, 0.2) * DISC_SIZE}px`;
+            const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            const uniform = 1;
+            // Variation: lerp from uniform to gaussian
+            const variation = uniform * (1 - p) + gaussian * p;
+            // Overall scale: 0.5 at p=0, 1.1 at p=1
+            const overallScale = 0.5 + 0.6 * p;
+            let size = variation * overallScale;
+            if (isCenterDisc && pm > 0) size += pm * 0.15;
+            return `${max(size, 0.15) * DISC_SIZE}px`;
           }),
           height: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
             const t = min(d / maxVisibleDist, 1);
-            const gaussianSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            const compactSize = 0.55;
-            const s =
-              compactSize + (gaussianSize - compactSize) * min(p / 0.66, 1);
-            const finalSize = p > 0.66 ? s + (p - 0.66) * 0.3 : s;
-            if (isCenterDisc && pm > 0) {
-              return `${(finalSize + pm * 0.15) * DISC_SIZE}px`;
-            }
-            return `${max(finalSize, 0.2) * DISC_SIZE}px`;
+            const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            const uniform = 1;
+            const variation = uniform * (1 - p) + gaussian * p;
+            const overallScale = 0.5 + 0.6 * p;
+            let size = variation * overallScale;
+            if (isCenterDisc && pm > 0) size += pm * 0.15;
+            return `${max(size, 0.15) * DISC_SIZE}px`;
           }),
           background: vinylBase,
           // Border: visible at low progress (compact mode), fades as progress increases
