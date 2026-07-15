@@ -180,13 +180,14 @@ export function VinylGrid() {
     [coords, offsetX, offsetY],
   );
 
-  const snapToNearest = useCallback(() => {
+  const snapToNearest = useCallback((): number => {
     const nearest = findNearestDisc(
       coords,
       offsetRef.current[0],
       offsetRef.current[1],
     );
     panToDisc(nearest);
+    return nearest;
   }, [coords, panToDisc]);
 
   const clampOffset = useCallback(() => {
@@ -318,11 +319,13 @@ export function VinylGrid() {
       clampOffset();
       updateCenter();
     } else {
-      snapToNearest();
+      const snapped = snapToNearest();
+      // The centered disc becomes the active disc
+      setActiveDisc(snapped);
       progressRef.current = savedProgressRef.current;
       progress.start(savedProgressRef.current);
-      if (savedProgressRef.current >= 1 && activeDisc >= 0) {
-        enterPlayerMode(activeDisc);
+      if (savedProgressRef.current >= 1) {
+        enterPlayerMode(snapped);
       }
     }
   }, [
@@ -373,7 +376,8 @@ export function VinylGrid() {
         if (activeDisc >= 0) {
           panToDisc(activeDisc);
         } else {
-          snapToNearest();
+          const nearest = snapToNearest();
+          setActiveDisc(nearest);
         }
       }
 
