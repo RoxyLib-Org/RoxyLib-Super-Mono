@@ -27,22 +27,22 @@ export function ModeButtons({
   onClosePlayer,
 }: ModeButtonsProps) {
   return (
-    <div className="absolute top-5 left-5 z-50 flex items-center gap-3">
+    <div className="absolute top-6 left-6 z-50">
       {/* Player mode: ghost X button */}
       <animated.button
         type="button"
         onClick={onClosePlayer}
         aria-label="Close player"
-        className="w-8 h-8 rounded-full flex items-center justify-center text-white/50 hover:text-white/80 transition-colors cursor-pointer backdrop-blur-sm"
+        className="absolute top-0 left-0 w-10 h-10 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer backdrop-blur-sm border border-white/20"
         style={{
           opacity: playerMode.to((pm) => pm),
           pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
-          transform: playerMode.to((pm) => `scale(${0.5 + pm * 0.5})`),
+          transform: playerMode.to((pm) => `scale(${0.6 + pm * 0.4})`),
         }}
       >
         <svg
-          width="16"
-          height="16"
+          width="18"
+          height="18"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
@@ -53,21 +53,19 @@ export function ModeButtons({
         </svg>
       </animated.button>
 
-      {/* Level 2/3: minimize + maximize buttons */}
+      {/* Level 2/3: minimize + maximize buttons (same position, overlaps X) */}
       <animated.div
-        className="flex items-center gap-2"
+        className="absolute top-0 left-0 flex items-center gap-3"
         style={{
-          // Visible when progress > 0 (not level 1) AND not in player mode
-          opacity: to(
-            [progress, playerMode],
-            (p, pm) => Math.min(Math.min(p, 1 - pm) * 3, 1), // fade in quickly after p>0
+          opacity: to([progress, playerMode], (p, pm) =>
+            Math.min(Math.min(p, 1 - pm) * 3, 1),
           ),
           pointerEvents: to([progress, playerMode], (p, pm) =>
             p > 0.1 && pm < 0.5 ? "auto" : "none",
           ),
           transform: to(
             [progress, playerMode],
-            (p, pm) => `scale(${0.5 + Math.min(p * 3, 1) * 0.5 * (1 - pm)})`,
+            (p, pm) => `scale(${0.6 + Math.min(p * 3, 1) * 0.4 * (1 - pm)})`,
           ),
         }}
       >
@@ -76,18 +74,18 @@ export function ModeButtons({
           type="button"
           onClick={onMinimize}
           aria-label="Minimize"
-          className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-sm"
+          className="w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
           >
-            <path d="M2 6h8" />
+            <path d="M3 8h10" />
           </svg>
         </button>
 
@@ -96,18 +94,19 @@ export function ModeButtons({
           type="button"
           onClick={onMaximize}
           aria-label="Maximize"
-          className="w-7 h-7 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-sm"
+          className="w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="12"
-            height="12"
-            viewBox="0 0 12 12"
+            width="14"
+            height="14"
+            viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
-            strokeWidth="1.5"
+            strokeWidth="2"
             strokeLinecap="round"
+            strokeLinejoin="round"
           >
-            <path d="M2 2h8v8H2z" />
+            <path d="M2 2h10v10H2z" />
           </svg>
         </button>
       </animated.div>
