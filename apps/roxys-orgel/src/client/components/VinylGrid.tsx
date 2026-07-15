@@ -1,5 +1,6 @@
 import { animated, useSpring, useSpringValue } from "@react-spring/web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AuroraBackground } from "./AuroraBackground";
 import { CustomCursor } from "./CustomCursor";
 import { ModeButtons } from "./ModeButtons";
 import { TransportControls } from "./TransportControls";
@@ -180,6 +181,12 @@ export function VinylGrid() {
     color: "rgb(0,0,0)",
     config: { tension: 200, friction: 26 },
   }));
+  const playingSpring = useSpringValue(0, {
+    config: { tension: 120, friction: 20 },
+  });
+  useEffect(() => {
+    playingSpring.start(isPlaying ? 1 : 0);
+  }, [isPlaying, playingSpring]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
@@ -678,6 +685,9 @@ export function VinylGrid() {
         className="absolute inset-0"
         style={{ backgroundColor: bgSpring.color }}
       />
+
+      {/* Aurora flowing light effect - visible in player mode */}
+      <AuroraBackground visible={playingSpring} color={bgSpring.color} />
 
       {/* Grid layer — all drag/click/zoom gestures live here */}
       <div
