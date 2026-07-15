@@ -5,6 +5,8 @@ interface ModeButtonsProps {
   progress: SpringValue<number>;
   /** 0-1 player mode spring */
   playerMode: SpringValue<number>;
+  /** Discrete boolean – true when in player mode */
+  isPlayerMode: boolean;
   /** Go to level 1 (browse) */
   onMinimize: () => void;
   /** Go to level 4 (player controls) */
@@ -22,6 +24,7 @@ interface ModeButtonsProps {
 export function ModeButtons({
   progress,
   playerMode,
+  isPlayerMode,
   onMinimize,
   onMaximize,
   onClosePlayer,
@@ -35,15 +38,13 @@ export function ModeButtons({
           opacity: to([progress, playerMode], (p, pm) =>
             Math.min(Math.min(p, 1 - pm) * 3, 1),
           ),
-          pointerEvents: to([progress, playerMode], (p, pm) =>
-            p > 0.1 && pm === 0 ? "auto" : "none",
-          ),
+          pointerEvents: isPlayerMode ? "none" : "auto",
         }}
       >
         {/* Minimize → level 1 */}
         <button
           type="button"
-          onClick={onMinimize}
+          onClick={() => { console.log("[DEBUG] ModeButtons: minimize button clicked"); onMinimize(); }}
           aria-label="Minimize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -63,7 +64,7 @@ export function ModeButtons({
         {/* Maximize → level 4 (player) */}
         <button
           type="button"
-          onClick={onMaximize}
+          onClick={() => { console.log("[DEBUG] ModeButtons: maximize button clicked"); onMaximize(); }}
           aria-label="Maximize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -85,12 +86,12 @@ export function ModeButtons({
       {/* Player mode: ghost X button — AFTER minimize so it stacks on top */}
       <animated.button
         type="button"
-        onClick={onClosePlayer}
+        onClick={() => { console.log("[DEBUG] ModeButtons: X (closePlayer) button clicked"); onClosePlayer(); }}
         aria-label="Close player"
         className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{
           opacity: playerMode.to((pm) => pm),
-          pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
+          pointerEvents: isPlayerMode ? "auto" : "none",
         }}
       >
         <svg

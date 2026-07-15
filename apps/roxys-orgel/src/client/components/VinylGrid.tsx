@@ -235,12 +235,15 @@ export function VinylGrid() {
   );
 
   const exitPlayerMode = useCallback(() => {
+    console.log("[DEBUG] exitPlayerMode called");
     setPlayerMode(false);
     playerSpring.start(0);
     bgApi.start({ color: "rgb(0,0,0)" });
   }, [playerSpring, bgApi]);
 
   const handleMinimize = useCallback(() => {
+    console.log("[DEBUG] handleMinimize called");
+    console.trace("[DEBUG] handleMinimize stack");
     progressRef.current = 0;
     savedProgressRef.current = 0;
     progress.start(0);
@@ -261,11 +264,13 @@ export function VinylGrid() {
   }, [activeDisc, coords, panToDisc, progress, enterPlayerMode]);
 
   const handleClosePlayer = useCallback(() => {
+    console.log("[DEBUG] handleClosePlayer called");
+    console.trace("[DEBUG] handleClosePlayer stack");
     exitPlayerMode();
-    progressRef.current = 0;
-    savedProgressRef.current = 0;
-    progress.start(0);
-    setAtLevel1(true);
+    progressRef.current = 0.66;
+    savedProgressRef.current = 0.66;
+    progress.start(0.66);
+    setAtLevel1(false);
   }, [exitPlayerMode, progress]);
 
   // ── Snap timer ─────────────────────────────────────────────────────────────
@@ -357,13 +362,6 @@ export function VinylGrid() {
 
       if (progressRef.current > 0) {
         savedProgressRef.current = progressRef.current;
-        if (progressRef.current !== 0.66) {
-          progress.start(0.66);
-        }
-        if (playerMode) {
-          playerSpring.start(0);
-          bgApi.start({ color: "rgb(0,0,0)" });
-        }
       }
     },
     [progress, playerMode, playerSpring, bgApi],
@@ -378,6 +376,14 @@ export function VinylGrid() {
         const dy = evt.clientY - mouseStartRef.current.y;
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isDraggingRef.current = true;
+          // Only shrink on confirmed drag, not on click
+          if (savedProgressRef.current > 0 && savedProgressRef.current !== 0.66) {
+            progress.start(0.66);
+          }
+          if (playerMode) {
+            playerSpring.start(0);
+            bgApi.start({ color: "rgb(0,0,0)" });
+          }
         }
       }
 
@@ -389,16 +395,18 @@ export function VinylGrid() {
         updateCenter();
       }
     },
-    [isHold, offsetX, offsetY, updateCenter],
+    [isHold, offsetX, offsetY, updateCenter, progress, playerMode, playerSpring, bgApi],
   );
 
   const handleMouseUp = useCallback(
     (_evt: React.MouseEvent) => {
+      console.log("[DEBUG] handleMouseUp fired, isDragging:", isDraggingRef.current, "hoveredDiscIndex:", hoveredDiscIndex);
       setIsHold(false);
 
       if (!isDraggingRef.current) {
         // Click — use hovered disc from mouseenter/leave
         if (hoveredDiscIndex >= 0) {
+          console.log("[DEBUG] handleMouseUp: calling handleDiscClick(", hoveredDiscIndex, ")");
           handleDiscClick(hoveredDiscIndex);
         }
         // Restore progress if changed on mouseDown
@@ -406,9 +414,11 @@ export function VinylGrid() {
           progressRef.current !== savedProgressRef.current &&
           savedProgressRef.current > 0
         ) {
+          console.log("[DEBUG] handleMouseUp: restoring progress to", savedProgressRef.current);
           progressRef.current = savedProgressRef.current;
           progress.start(savedProgressRef.current);
           if (savedProgressRef.current >= 1 && activeDisc >= 0) {
+            console.log("[DEBUG] handleMouseUp: re-entering playerMode");
             enterPlayerMode(activeDisc);
           }
         }
@@ -700,6 +710,7 @@ export function VinylGrid() {
       <ModeButtons
         progress={progress}
         playerMode={playerSpring}
+        isPlayerMode={playerMode}
         onMinimize={handleMinimize}
         onMaximize={handleMaximize}
         onClosePlayer={handleClosePlayer}
