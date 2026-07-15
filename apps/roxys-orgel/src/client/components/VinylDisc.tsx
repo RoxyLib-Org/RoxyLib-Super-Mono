@@ -13,7 +13,7 @@ const { sqrt, min, max, pow } = Math;
 export const DISC_SIZE = 300;
 
 /** Gap between discs (center-to-center = DISC_SIZE + GAP) */
-export const DISC_GAP = 100;
+export const DISC_GAP = 60;
 
 /** Hex grid spacing radius (half the center-to-center distance) */
 export const HEX_RADIUS = (DISC_SIZE + DISC_GAP) / 2;
@@ -53,6 +53,10 @@ const VINYL_PALETTES: [string, string][] = [
   ["oklch(0.22 0.01 260)", "oklch(0.15 0.005 260)"], // black (deeper)
 ];
 
+export function getVinylColor(index: number): string {
+  return VINYL_PALETTES[index % 3][0];
+}
+
 /** Pick vinyl color based on index, evenly distributed */
 function getVinylColors(index: number): [string, string] {
   return VINYL_PALETTES[index % 3];
@@ -61,8 +65,13 @@ function getVinylColors(index: number): [string, string] {
 interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
-  zoom: SpringValue<number>;
-  /** 0 = grid mode, 1 = player mode (single disc centered upper) */
+  /**
+   * 0 = compact mode (cover + 4px border, no compression, slightly smaller)
+   * 0.66 ≈ original state (full vinyl, gaussian size, original compression)
+   * 1 = slightly larger than original, max compression → triggers player
+   */
+  progress: SpringValue<number>;
+  /** 0 = grid, 1 = player mode (only center visible) */
   playerMode: SpringValue<number>;
   index: number;
   isPlaying: boolean;
@@ -77,7 +86,7 @@ const DISC_ROTATION_PERIOD = 8000;
 export function VinylDisc({
   coord,
   offset,
-  zoom,
+  progress,
   playerMode,
   index,
   isPlaying,
@@ -85,25 +94,28 @@ export function VinylDisc({
   onCenter,
   onHover,
 }: VinylDiscProps) {
+  // Position with progress-based radial compression
   const [x, y] = useMemo(() => {
-    // Raw position relative to viewport center
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    // Radial compression modulated by zoom: zoom=0 → no compression, zoom=1 → max compression
-    const COMPRESS_K = 0.0003;
+    // Base compression always active; progress adds more
+    const BASE_K = 0.00015;
+    const EXTRA_K = 0.00015;
     return [
-      to([rawX, rawY, zoom], (xv, yv, z) => {
+      to([rawX, rawY, progress], (xv, yv, p) => {
         const dist = sqrt(xv * xv + yv * yv);
-        const scale = max(0.4, 1 - COMPRESS_K * z * dist);
+        const k = BASE_K + EXTRA_K * p;
+        const scale = max(0.5, 1 - k * dist);
         return xv * scale;
       }),
-      to([rawX, rawY, zoom], (xv, yv, z) => {
+      to([rawX, rawY, progress], (xv, yv, p) => {
         const dist = sqrt(xv * xv + yv * yv);
-        const scale = max(0.4, 1 - COMPRESS_K * z * dist);
+        const k = BASE_K + EXTRA_K * p;
+        const scale = max(0.5, 1 - k * dist);
         return yv * scale;
       }),
     ];
-  }, [offset, coord, zoom]);
+  }, [offset, coord, progress]);
 
   const distanceFromCenter = useMemo(
     () => to([x, y], (xv, yv) => sqrt(pow(xv, 2) + pow(yv, 2))),
@@ -189,21 +201,16 @@ export function VinylDisc({
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(-1)}
       style={{
-        // In player mode: center disc moves to center-upper, others fade away
+        // In player mode: center disc moves up, others stay
         left: to([x, playerMode], (xv, pm) => {
-          if (pm <= 0) return `calc(50% + ${xv}px)`;
-          // Center disc → viewport center, others stay
-          if (isCenterDisc) {
-            const target = 0; // viewport center
-            const interp = xv * (1 - pm) + target * pm;
+          if (isCenterDisc && pm > 0) {
+            const interp = xv * (1 - pm);
             return `calc(50% + ${interp}px)`;
           }
           return `calc(50% + ${xv}px)`;
         }),
         top: to([y, playerMode], (yv, pm) => {
-          if (pm <= 0) return `calc(50% + ${yv}px)`;
-          if (isCenterDisc) {
-            // Move to 35% from top (centered-upper)
+          if (isCenterDisc && pm > 0) {
             const targetOffset = -window.innerHeight * 0.15;
             const interp = yv * (1 - pm) + targetOffset * pm;
             return `calc(50% + ${interp}px)`;
@@ -217,47 +224,57 @@ export function VinylDisc({
         // In player mode, non-center discs fade out
         opacity: playerMode.to((pm) => {
           if (isCenterDisc) return 1;
-          return max(0, 1 - pm * 2); // fade quickly
+          return max(0, 1 - pm * 3);
         }),
       }}
     >
-      {/* Outer clip container — carries all 3D effects + clips content */}
+      {/* Outer clip container */}
       <animated.div
         ref={containerRef}
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
         className="rounded-full overflow-hidden flex items-center justify-center relative"
         style={{
-          // Size: slightly smaller at zoom=0 (compact border mode), slightly larger at zoom=1
-          width: to([distanceFromCenter, zoom, playerMode], (_d, z, pm) => {
-            const baseSize = 0.85 + 0.15 * z; // 0.85 → 1.0
+          // Size: progress interpolates between compact (0.55) and full gaussian
+          width: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
+            const t = min(d / maxVisibleDist, 1);
+            // Original gaussian size at high progress
+            const gaussianSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            // Compact: uniform smaller size
+            const compactSize = 0.55;
+            // Lerp: at p=0 → compact, at p=0.66 → gaussian, at p=1 → slightly bigger
+            const s =
+              compactSize + (gaussianSize - compactSize) * min(p / 0.66, 1);
+            const finalSize = p > 0.66 ? s + (p - 0.66) * 0.3 : s;
+            // Player mode: center disc slightly larger
             if (isCenterDisc && pm > 0) {
-              // In player mode, center disc grows a bit
-              const playerSize = 1.2;
-              const s = baseSize * (1 - pm) + playerSize * pm;
-              return `${s * DISC_SIZE}px`;
+              return `${(finalSize + pm * 0.15) * DISC_SIZE}px`;
             }
-            return `${baseSize * DISC_SIZE}px`;
+            return `${max(finalSize, 0.2) * DISC_SIZE}px`;
           }),
-          height: to([distanceFromCenter, zoom, playerMode], (_d, z, pm) => {
-            const baseSize = 0.85 + 0.15 * z;
+          height: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
+            const t = min(d / maxVisibleDist, 1);
+            const gaussianSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
+            const compactSize = 0.55;
+            const s =
+              compactSize + (gaussianSize - compactSize) * min(p / 0.66, 1);
+            const finalSize = p > 0.66 ? s + (p - 0.66) * 0.3 : s;
             if (isCenterDisc && pm > 0) {
-              const playerSize = 1.2;
-              const s = baseSize * (1 - pm) + playerSize * pm;
-              return `${s * DISC_SIZE}px`;
+              return `${(finalSize + pm * 0.15) * DISC_SIZE}px`;
             }
-            return `${baseSize * DISC_SIZE}px`;
+            return `${max(finalSize, 0.2) * DISC_SIZE}px`;
           }),
           background: vinylBase,
-          // Border: 4px solid at zoom=0, fades out at zoom=1
-          border: zoom.to((z) => {
-            const borderWidth = 4 * (1 - z);
+          // Border: visible at low progress (compact mode), fades as progress increases
+          border: progress.to((p) => {
+            const borderWidth = 4 * max(0, 1 - p * 2);
             return borderWidth > 0.5
               ? `${borderWidth}px solid ${vinylBase}`
               : "none";
           }),
-          boxShadow: zoom.to((z) => {
-            return `0 8px 32px rgba(0,0,0,${0.5 * z}), inset 0 3px 5px rgba(255,255,255,${0.3 * z}), inset 0 -3px 6px rgba(0,0,0,${0.5 * z})`;
+          boxShadow: progress.to((p) => {
+            const o = min(p * 2, 1);
+            return `0 8px 32px rgba(0,0,0,${0.5 * o}), inset 0 3px 5px rgba(255,255,255,${0.3 * o}), inset 0 -3px 6px rgba(0,0,0,${0.5 * o})`;
           }),
           transform: to(
             [tiltSpring.rx, tiltSpring.ry],
@@ -273,12 +290,10 @@ export function VinylDisc({
             width: DISC_SIZE,
             height: DISC_SIZE,
             transform: discRotateSpring.to((r) => `rotate(${r}deg)`),
-            // zoom controls vinyl texture visibility: 0=hidden (just border color), 1=full vinyl
-            opacity: zoom.to((z) => z),
           }}
         >
-          {/* Vinyl grooves — repeating radial rings with extracted color */}
-          <div
+          {/* Vinyl grooves — visible only when progress > 0.3 */}
+          <animated.div
             className="absolute inset-0 rounded-full"
             style={{
               background: `repeating-radial-gradient(
@@ -287,12 +302,12 @@ export function VinylDisc({
                 ${vinylDark} 1.5px,
                 ${vinylBase} 3px
               )`,
-              opacity: 0.85,
+              opacity: progress.to((p) => max(0, (p - 0.3) / 0.7) * 0.85),
             }}
           />
 
           {/* Subtle groove sheen overlay */}
-          <div
+          <animated.div
             className="absolute inset-0 rounded-full"
             style={{
               background: `repeating-radial-gradient(
@@ -301,11 +316,12 @@ export function VinylDisc({
                 rgba(255,255,255,0.04) 2px,
                 transparent 4px
               )`,
+              opacity: progress.to((p) => max(0, (p - 0.3) / 0.7)),
             }}
           />
 
-          {/* Cover art */}
-          <animated.div
+          {/* Cover art — always visible */}
+          <div
             className="absolute rounded-full overflow-hidden bg-cover bg-center"
             style={{
               inset: "8%",
@@ -315,13 +331,13 @@ export function VinylDisc({
           />
         </animated.div>
 
-        {/* Top highlight arc — rendered above content, still inside clip */}
+        {/* Top highlight arc */}
         <animated.div
           className="absolute inset-0 rounded-full pointer-events-none"
           style={{
             background:
               "radial-gradient(ellipse 60% 40% at 35% 25%, rgba(255,255,255,0.18) 0%, transparent 70%)",
-            opacity: zoom.to((z) => z),
+            opacity: progress.to((p) => min(p * 2, 1)),
           }}
         />
       </animated.div>
