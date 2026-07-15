@@ -33,15 +33,15 @@ export function ModeButtons({
         type="button"
         onClick={onClosePlayer}
         aria-label="Close player"
-        className="absolute top-0 left-0 w-10 h-10 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer backdrop-blur-sm border border-white/20"
+        className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{
           opacity: playerMode.to((pm) => pm),
           pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
         }}
       >
         <svg
-          width="18"
-          height="18"
+          width="32"
+          height="32"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"
@@ -54,7 +54,7 @@ export function ModeButtons({
 
       {/* Level 2/3: minimize + maximize buttons (same position, overlaps X) */}
       <animated.div
-        className="absolute top-0 left-0 flex items-center gap-3"
+        className="absolute top-0 left-0 flex items-center gap-4"
         style={{
           opacity: to([progress, playerMode], (p, pm) =>
             Math.min(Math.min(p, 1 - pm) * 3, 1),
@@ -69,11 +69,11 @@ export function ModeButtons({
           type="button"
           onClick={onMinimize}
           aria-label="Minimize"
-          className="w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="16"
-            height="16"
+            width="28"
+            height="28"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
@@ -89,11 +89,11 @@ export function ModeButtons({
           type="button"
           onClick={onMaximize}
           aria-label="Maximize"
-          className="w-10 h-10 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="14"
-            height="14"
+            width="24"
+            height="24"
             viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
