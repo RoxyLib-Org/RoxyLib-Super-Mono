@@ -262,10 +262,10 @@ export function VinylGrid() {
 
   const handleClosePlayer = useCallback(() => {
     exitPlayerMode();
-    progressRef.current = 0.66;
-    savedProgressRef.current = 0.66;
-    progress.start(0.66);
-    setAtLevel1(false);
+    progressRef.current = 0;
+    savedProgressRef.current = 0;
+    progress.start(0);
+    setAtLevel1(true);
   }, [exitPlayerMode, progress]);
 
   // ── Snap timer ─────────────────────────────────────────────────────────────
