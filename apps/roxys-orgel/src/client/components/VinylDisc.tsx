@@ -272,7 +272,13 @@ export function VinylDisc({
           style={{
             width: DISC_SIZE,
             height: DISC_SIZE,
-            transform: discRotateSpring.to((r) => `rotate(${r}deg)`),
+            transform: to([discRotateSpring, progress], (r, p) => {
+              // p=0 (level 1): scale down to fit container so cover is fully visible
+              // p>=0.33 (level 2+): scale=1, natural clipping
+              const contentScale =
+                p < 0.33 ? 0.28 + (1 - 0.28) * (p / 0.33) : 1;
+              return `rotate(${r}deg) scale(${contentScale})`;
+            }),
           }}
         >
           {/* Vinyl grooves — visible only when progress > 0.3 */}
@@ -304,10 +310,12 @@ export function VinylDisc({
           />
 
           {/* Cover art — always visible */}
-          <div
+          <animated.div
             className="absolute rounded-full overflow-hidden bg-cover bg-center"
             style={{
-              inset: "8%",
+              inset: progress.to((p) =>
+                p < 0.33 ? `${(p / 0.33) * 8}%` : "8%",
+              ),
               backgroundImage: `url(${coverUrl})`,
               boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
             }}
