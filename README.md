@@ -76,7 +76,7 @@ pnpm x roxys-gateway:deploy:update
 pnpm drizzle generate
 
 # 应用到远程 D1
-cd apps/roxys-orgel && npx wrangler d1 migrations apply roxys-orgel --remote
+pnpm x roxys-orgel:d1-migrate
 ```
 
 ## 命令参考
