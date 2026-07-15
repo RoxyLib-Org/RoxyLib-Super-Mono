@@ -354,7 +354,6 @@ export function VinylGrid() {
       setIsHold(true);
       isDraggingRef.current = false;
       pointerStartRef.current = { x: evt.clientX, y: evt.clientY };
-      (evt.currentTarget as HTMLElement).setPointerCapture(evt.pointerId);
 
       if (progressRef.current > 0) {
         savedProgressRef.current = progressRef.current;
@@ -379,6 +378,7 @@ export function VinylGrid() {
         const dy = evt.clientY - pointerStartRef.current.y;
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isDraggingRef.current = true;
+          (evt.currentTarget as HTMLElement).setPointerCapture(evt.pointerId);
         }
       }
 
