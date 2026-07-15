@@ -461,11 +461,20 @@ export function VinylGrid() {
       progress,
       enterPlayerMode,
       activeDisc,
-      handleDiscClick,
       viewportScale,
+      handleDiscClick,
+      coords.length,
       coords,
     ],
   );
+
+  // Suppress click events that were actually drags
+  const handleClickCapture = useCallback((evt: React.MouseEvent) => {
+    if (isDraggingRef.current) {
+      evt.stopPropagation();
+      evt.preventDefault();
+    }
+  }, []);
 
   // ── Wheel handler ──────────────────────────────────────────────────────────
   const handleWheel = useCallback(
@@ -577,6 +586,7 @@ export function VinylGrid() {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onLostPointerCapture={handlePointerUp}
+      onClickCapture={handleClickCapture}
       onWheel={handleWheel}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
@@ -605,6 +615,7 @@ export function VinylGrid() {
             isCenterDisc={idx === centerDiscIndex}
             isPlayingDisc={idx === activeDisc}
             onHover={setHoveredDiscIndex}
+            onClick={handleDiscClick}
           />
         ))}
       </div>

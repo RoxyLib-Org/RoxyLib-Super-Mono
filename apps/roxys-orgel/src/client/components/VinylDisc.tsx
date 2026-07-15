@@ -72,6 +72,7 @@ interface VinylDiscProps {
   isCenterDisc: boolean;
   isPlayingDisc: boolean;
   onHover: (index: number) => void;
+  onClick: (index: number) => void;
 }
 
 const DISC_ROTATION_PERIOD = 8000;
@@ -86,6 +87,7 @@ export function VinylDisc({
   isCenterDisc,
   isPlayingDisc,
   onHover,
+  onClick: onDiscClick,
 }: VinylDiscProps) {
   // Position: progress controls spacing and radial compression
   // Spacing: p=0 → tight (0.7x), p=1 → wide (1.5x)
@@ -200,6 +202,10 @@ export function VinylDisc({
       className="absolute cursor-none select-none"
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(-1)}
+      onClick={(e) => {
+        e.stopPropagation();
+        onDiscClick(index);
+      }}
       style={{
         // In player mode: center disc moves up, others stay
         left: to([x, playerMode], (xv, pm) => {
