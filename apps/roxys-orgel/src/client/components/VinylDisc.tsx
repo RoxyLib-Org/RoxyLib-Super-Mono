@@ -251,14 +251,14 @@ export function VinylDisc({
           width: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
             // Steep gaussian: center = 1.4, drops off quickly
-            const gaussian = 0.1 + 1.7 * Math.exp(-8 * t * t);
+            const gaussian = 0.35 + 1.45 * Math.exp(-3 * t * t);
             const uniform = 0.28;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
           height: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
-            const gaussian = 0.1 + 1.7 * Math.exp(-8 * t * t);
+            const gaussian = 0.35 + 1.45 * Math.exp(-3 * t * t);
             const uniform = 0.28;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
