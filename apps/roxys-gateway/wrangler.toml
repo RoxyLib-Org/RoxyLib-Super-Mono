@@ -21,3 +21,8 @@ UPSTREAM_URL = "http://localhost:3000"
 binding = "VPC_PAN"
 service_id = "019f652a-973f-73d0-93a0-cbe544dde600"
 remote = true
+
+[[vpc_services]]
+binding = "VPC_BOOK"
+service_id = "019f652c-6a3e-7112-9c58-d8d18c4c0e86"
+remote = true
