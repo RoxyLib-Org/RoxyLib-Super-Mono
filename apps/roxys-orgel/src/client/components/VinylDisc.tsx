@@ -76,6 +76,8 @@ interface VinylDiscProps {
   index: number;
   isPlaying: boolean;
   isCenterDisc: boolean;
+  /** Whether this specific disc is the one currently playing (rotation gate) */
+  isPlayingDisc: boolean;
   onCenter: (index: number) => void;
   onHover: (index: number) => void;
 }
@@ -91,6 +93,7 @@ export function VinylDisc({
   index,
   isPlaying,
   isCenterDisc,
+  isPlayingDisc,
   onCenter,
   onHover,
 }: VinylDiscProps) {
@@ -160,7 +163,7 @@ export function VinylDisc({
   }, [tiltApi]);
 
   // Disc rotation — spring-driven for smooth return to 0
-  const shouldSpin = isPlaying && isCenterDisc;
+  const shouldSpin = isPlaying && isPlayingDisc;
   const discRotateSpring = useSpringValue(0, {
     config: { mass: 1, tension: 120, friction: 20 },
   });

@@ -123,7 +123,7 @@ export function VinylGrid() {
   const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
-  const [_playingDiscIndex, setPlayingDiscIndex] = useState(-1);
+  const [playingDiscIndex, setPlayingDiscIndex] = useState(-1);
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
   const savedProgressRef = useRef(0.66);
@@ -407,6 +407,7 @@ export function VinylGrid() {
             index={idx}
             isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
+            isPlayingDisc={idx === playingDiscIndex}
             onCenter={handleCenter}
             onHover={setHoveredDiscIndex}
           />
