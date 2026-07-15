@@ -103,7 +103,7 @@ export function VinylDisc({
   const [x, y] = useMemo(() => {
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    const SPACING_MIN = 0.7;
+    const SPACING_MIN = 0.55;
     const SPACING_MAX = 1.5;
     // Compression: 1/(1 + k*sqrt(dist)) — sublinear, strong in mid-range, gentle at extremes
     const COMPRESS_K = 0.015;
@@ -252,14 +252,14 @@ export function VinylDisc({
             const t = min(d / maxVisibleDist, 1);
             // Steep gaussian: center = 1.4, drops off quickly
             const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
-            const uniform = 0.55;
+            const uniform = 0.4;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
           height: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
             const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
-            const uniform = 0.55;
+            const uniform = 0.4;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
