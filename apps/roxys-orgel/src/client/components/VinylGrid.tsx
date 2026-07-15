@@ -661,16 +661,7 @@ export function VinylGrid() {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div
-      className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none"
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onWheel={handleWheel}
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
-    >
+    <div className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none">
       <LiquidGlassFilter />
 
       <animated.div
@@ -678,9 +669,17 @@ export function VinylGrid() {
         style={{ backgroundColor: bgSpring.color }}
       />
 
+      {/* Grid layer — all drag/click/zoom gestures live here */}
       <div
         className="relative w-full h-full origin-center"
         style={{ transform: `scale(${viewportScale})` }}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onWheel={handleWheel}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
       >
         {coords.map((coord, idx) => (
           <VinylDisc
