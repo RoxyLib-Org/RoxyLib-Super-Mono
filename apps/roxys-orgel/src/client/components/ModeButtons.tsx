@@ -1,4 +1,5 @@
 import { animated, type SpringValue, to } from "@react-spring/web";
+import { useRef } from "react";
 
 interface ModeButtonsProps {
   /** 0-1 zoom progress spring */
@@ -9,15 +10,17 @@ interface ModeButtonsProps {
   onMinimize: () => void;
   /** Go to level 4 (player controls) */
   onMaximize: () => void;
-  /** Exit player mode → level 3 */
+  /** Exit player mode → level 1 */
   onClosePlayer: () => void;
 }
 
 /**
  * Top-left mode buttons:
- * - Player mode (level 4): ghost X to close → level 3
+ * - Player mode (level 4): ghost X to close → level 1
  * - Level 2/3: minimize (→1) + maximize (→4) circular white buttons
  * - Level 1: hidden
+ *
+ * Uses mousedown+mouseup pair to avoid ghost clicks during spring transitions.
  */
 export function ModeButtons({
   progress,
@@ -26,12 +29,30 @@ export function ModeButtons({
   onMaximize,
   onClosePlayer,
 }: ModeButtonsProps) {
+  // Track which button got mousedown — only fire on matching mouseup
+  const pressedRef = useRef<string | null>(null);
+
+  const handleDown = (id: string) => (e: React.MouseEvent) => {
+    e.stopPropagation();
+    pressedRef.current = id;
+  };
+
+  const handleUp =
+    (id: string, action: () => void) => (e: React.MouseEvent) => {
+      e.stopPropagation();
+      if (pressedRef.current === id) {
+        action();
+      }
+      pressedRef.current = null;
+    };
+
   return (
     <div
       className="absolute top-6 left-6 z-50"
-      onPointerDown={(e) => e.stopPropagation()}
-      onPointerUp={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
+      onMouseUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
+      onPointerDown={(e) => e.stopPropagation()}
     >
       {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
@@ -41,14 +62,15 @@ export function ModeButtons({
             Math.min(Math.min(p, 1 - pm) * 3, 1),
           ),
           pointerEvents: to([progress, playerMode], (p, pm) =>
-            p > 0.1 && pm < 0.5 ? "auto" : "none",
+            p > 0.1 && pm === 0 ? "auto" : "none",
           ),
         }}
       >
         {/* Minimize → level 1 */}
         <button
           type="button"
-          onClick={onMinimize}
+          onMouseDown={handleDown("min")}
+          onMouseUp={handleUp("min", onMinimize)}
           aria-label="Minimize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -68,7 +90,8 @@ export function ModeButtons({
         {/* Maximize → level 4 (player) */}
         <button
           type="button"
-          onClick={onMaximize}
+          onMouseDown={handleDown("max")}
+          onMouseUp={handleUp("max", onMaximize)}
           aria-label="Maximize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -90,7 +113,8 @@ export function ModeButtons({
       {/* Player mode: ghost X button — AFTER minimize so it stacks on top */}
       <animated.button
         type="button"
-        onClick={onClosePlayer}
+        onMouseDown={handleDown("close")}
+        onMouseUp={handleUp("close", onClosePlayer)}
         aria-label="Close player"
         className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{
