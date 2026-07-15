@@ -254,8 +254,13 @@ export function VinylGrid() {
       if (progressRef.current !== 0.66) {
         progress.start(0.66);
       }
+      // Temporarily exit player mode visuals during drag
+      if (playerMode) {
+        playerSpring.start(0);
+        bgApi.start({ color: "rgb(0,0,0)" });
+      }
     }
-  }, [progress]);
+  }, [progress, playerMode, playerSpring, bgApi]);
 
   const handlePointerUp = useCallback(() => {
     setIsHold(false);
