@@ -27,7 +27,7 @@ export function ModeButtons({
   onClosePlayer,
 }: ModeButtonsProps) {
   return (
-    <div className="absolute top-6 left-6 z-50">
+    <div className="absolute top-6 left-6 z-50 pointer-events-none">
       {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
         className="absolute top-0 left-0 flex items-center gap-4"
