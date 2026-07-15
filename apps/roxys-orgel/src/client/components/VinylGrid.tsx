@@ -9,7 +9,7 @@ import {
   VinylDisc,
 } from "./VinylDisc";
 
-const { sqrt, pow } = Math;
+const { sqrt, pow, max, min } = Math;
 
 const DIRECTIONS: [number, number][] = [
   [1, 0],
@@ -20,10 +20,6 @@ const DIRECTIONS: [number, number][] = [
   [0.5, -sqrt(3) / 2],
 ];
 
-/**
- * Generate hexagonal grid positions (honeycomb packing).
- * Center is [0,0], then rings expand outward.
- */
 function generateHexPositions(
   spacing: number,
   count: number,
@@ -57,16 +53,8 @@ function generateHexPositions(
   return positions;
 }
 
-/** Total vinyl discs — 4 full rings = 1+6+12+18+24 = 61 */
 const DISC_COUNT = 61;
 
-/**
- * 4 snap levels for progress:
- * 0   = compact: cover + 4px border, lowest compression
- * 0.33 = mild vinyl texture emerging
- * 0.66 = original full vinyl state
- * 1   = max — triggers player mode
- */
 const SNAP_LEVELS = [0, 0.33, 0.66, 1];
 
 function snapToLevel(value: number): number {
@@ -82,9 +70,6 @@ function snapToLevel(value: number): number {
   return SNAP_LEVELS[closest];
 }
 
-/**
- * Find the index of the disc whose coord is closest to the negated offset.
- */
 function findNearestDisc(
   coords: Array<[number, number]>,
   offsetX: number,
@@ -103,10 +88,33 @@ function findNearestDisc(
   return nearest;
 }
 
+/**
+ * Compute bounding box of hex grid coords with some padding.
+ * Returns max distance from center we allow offset to reach.
+ */
+function computeBounds(
+  coords: Array<[number, number]>,
+  padding: number,
+): number {
+  let maxDist = 0;
+  for (const [cx, cy] of coords) {
+    const d = sqrt(cx * cx + cy * cy);
+    if (d > maxDist) maxDist = d;
+  }
+  // Allow panning up to the outermost disc minus padding (keep edges visible)
+  return max(0, maxDist - padding);
+}
+
 export function VinylGrid() {
   const coords = useMemo(
     () => generateHexPositions(HEX_RADIUS, DISC_COUNT),
     [],
+  );
+
+  // Max offset allowed so edges don't disappear (tight safe area)
+  const maxOffset = useMemo(
+    () => computeBounds(coords, HEX_RADIUS * 2),
+    [coords],
   );
 
   const [isHold, setIsHold] = useState(false);
@@ -115,7 +123,8 @@ export function VinylGrid() {
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
   const offsetRef = useRef([0, 0]);
-  const progressRef = useRef(0.66); // Start at original state
+  const progressRef = useRef(0.66);
+  const savedProgressRef = useRef(0.66);
   const snapTimerRef = useRef(0);
 
   const springConfig = { tension: 170, friction: 24 };
@@ -128,7 +137,6 @@ export function VinylGrid() {
     config: { tension: 160, friction: 22 },
   });
 
-  // Background color spring
   const [bgSpring, bgApi] = useSpring(() => ({
     color: "rgb(0,0,0)",
     config: { tension: 200, friction: 26 },
@@ -155,6 +163,18 @@ export function VinylGrid() {
     offsetY.start(-cy);
     setCenterDiscIndex(nearest);
   }, [coords, offsetX, offsetY]);
+
+  /** Clamp offset to safe bounds and spring back */
+  const clampOffset = useCallback(() => {
+    const [ox, oy] = offsetRef.current;
+    const dist = sqrt(ox * ox + oy * oy);
+    if (dist > maxOffset) {
+      const scale = maxOffset / dist;
+      offsetRef.current = [ox * scale, oy * scale];
+      offsetX.start(offsetRef.current[0]);
+      offsetY.start(offsetRef.current[1]);
+    }
+  }, [maxOffset, offsetX, offsetY]);
 
   const enterPlayerMode = useCallback(
     (discIndex: number) => {
@@ -227,26 +247,55 @@ export function VinylGrid() {
   }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
 
   const handlePointerDown = useCallback(() => {
-    if (!playerMode) setIsHold(true);
-  }, [playerMode]);
+    setIsHold(true);
+    // At level 2/3/4 (progress > 0): temporarily zoom to level 3 during drag
+    if (progressRef.current > 0) {
+      savedProgressRef.current = progressRef.current;
+      if (progressRef.current !== 0.66) {
+        progress.start(0.66);
+      }
+    }
+  }, [progress]);
 
   const handlePointerUp = useCallback(() => {
-    if (!playerMode) {
-      setIsHold(false);
+    setIsHold(false);
+
+    const isLevel1 =
+      savedProgressRef.current === 0 || progressRef.current === 0;
+
+    if (isLevel1) {
+      // Level 1: free drag, no snap-to-center, just clamp bounds
+      clampOffset();
+      updateCenter();
+    } else {
+      // Level 2/3/4: snap to nearest disc and restore saved progress
       snapToNearest();
+      progressRef.current = savedProgressRef.current;
+      progress.start(savedProgressRef.current);
+      // Re-trigger player mode if was at level 4
+      if (savedProgressRef.current >= 1) {
+        enterPlayerMode(centerDiscIndex);
+      }
     }
-  }, [playerMode, snapToNearest]);
+  }, [
+    snapToNearest,
+    clampOffset,
+    updateCenter,
+    progress,
+    enterPlayerMode,
+    centerDiscIndex,
+  ]);
 
   const handlePointerMove = useCallback(
     (evt: React.PointerEvent) => {
-      if (!isHold || playerMode) return;
+      if (!isHold) return;
       offsetRef.current[0] += evt.movementX;
       offsetRef.current[1] += evt.movementY;
       offsetX.start(offsetRef.current[0]);
       offsetY.start(offsetRef.current[1]);
       updateCenter();
     },
-    [isHold, playerMode, offsetX, offsetY, updateCenter],
+    [isHold, offsetX, offsetY, updateCenter],
   );
 
   const handleWheel = useCallback(
@@ -257,15 +306,16 @@ export function VinylGrid() {
         if (evt.deltaY > 0) {
           exitPlayerMode();
           progressRef.current = 0.66;
+          savedProgressRef.current = 0.66;
           progress.start(0.66);
         }
         return;
       }
 
-      // Scroll up → increase progress, scroll down → decrease
       const delta = evt.deltaY > 0 ? -0.04 : 0.04;
       const next = Math.max(0, Math.min(1, progressRef.current + delta));
       progressRef.current = next;
+      savedProgressRef.current = next;
       progress.start(next);
       scheduleSnap();
     },
@@ -283,13 +333,11 @@ export function VinylGrid() {
     >
       <LiquidGlassFilter />
 
-      {/* Animated background */}
       <animated.div
         className="absolute inset-0"
         style={{ backgroundColor: bgSpring.color }}
       />
 
-      {/* Disc grid layer */}
       <div className="relative w-full h-full">
         {coords.map((coord, idx) => (
           <VinylDisc
@@ -307,7 +355,6 @@ export function VinylGrid() {
         ))}
       </div>
 
-      {/* Transport controls — visible in player mode */}
       <TransportControls
         visible={playerSpring}
         isPlaying={isPlaying}
