@@ -3,19 +3,16 @@ import { Hono } from "hono";
 
 interface Env {
   Bindings: GatewayBindings;
+  Variables: { upstream: string };
 }
 
 const app = new Hono<Env>();
 
 /**
- * Forward requests through VPC to private services on adabana.
- * - pan.roxylib.com → localhost:5244
- * - book.roxylib.com → localhost:15244
- * - Default: pan, unless cookie isRoxylibBook=true → book
+ * Resolve upstream origin based on host or cookie.
  */
-app.all("/*", async (c) => {
-  const url = new URL(c.req.url);
-  const host = url.hostname;
+app.use("*", async (c, next) => {
+  const host = c.req.header("host") ?? "";
 
   let upstream: string;
   if (host === "book.roxylib.com") {
@@ -23,28 +20,35 @@ app.all("/*", async (c) => {
   } else if (host === "pan.roxylib.com") {
     upstream = "http://localhost:5244";
   } else {
-    // Default: check cookie
     const isBook = getCookie(c, "isRoxylibBook") === "true";
     upstream = isBook ? "http://localhost:15244" : "http://localhost:5244";
   }
 
+  c.set("upstream", upstream);
+  await next();
+});
+
+/**
+ * Proxy all requests through VPC to adabana.
+ */
+app.all("*", async (c) => {
+  const upstream = c.get("upstream");
+  const url = new URL(c.req.url);
   const target = `${upstream}${url.pathname}${url.search}`;
 
   const headers = new Headers(c.req.raw.headers);
-  headers.set("X-Forwarded-Host", host);
+  headers.set("X-Forwarded-Host", url.hostname);
   headers.set("X-Forwarded-Proto", "https");
 
-  const res = await c.env.VPC.fetch(target, {
-    method: c.req.method,
-    headers,
-    body: c.req.raw.body,
-  });
+  const method = c.req.method;
+  const hasBody = method !== "GET" && method !== "HEAD";
 
-  return new Response(res.body, {
-    status: res.status,
-    statusText: res.statusText,
-    headers: res.headers,
+  return c.env.VPC.fetch(target, {
+    method,
+    headers,
+    body: hasBody ? c.req.raw.body : undefined,
+    redirect: "manual",
   });
 });
 
-export default { fetch: app.fetch };
+export default app;
