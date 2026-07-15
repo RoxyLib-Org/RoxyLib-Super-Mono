@@ -294,59 +294,108 @@ export function VinylGrid() {
     bgApi.start({ color: getVinylColor(next) });
   }, [activeDisc, coords, panToDisc, bgApi]);
 
-  // ── Pointer handlers ───────────────────────────────────────────────────────
-  const handlePointerDown = useCallback(() => {
-    setIsHold(true);
-    if (progressRef.current > 0) {
-      savedProgressRef.current = progressRef.current;
-      // During drag: drop to level 3 visual, hide player if active
-      if (progressRef.current !== 0.66) {
-        progress.start(0.66);
-      }
-      if (playerMode) {
-        playerSpring.start(0);
-        bgApi.start({ color: "rgb(0,0,0)" });
-      }
-    }
-  }, [progress, playerMode, playerSpring, bgApi]);
+  // ── Pointer handlers (drag vs click by distance threshold) ────────────────
+  const pointerStartRef = useRef<{ x: number; y: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const DRAG_THRESHOLD = 5;
 
-  const handlePointerUp = useCallback(() => {
-    setIsHold(false);
-    const isLevel1 =
-      savedProgressRef.current === 0 || progressRef.current === 0;
+  const handlePointerDown = useCallback(
+    (evt: React.PointerEvent) => {
+      setIsHold(true);
+      isDraggingRef.current = false;
+      pointerStartRef.current = { x: evt.clientX, y: evt.clientY };
+      (evt.currentTarget as HTMLElement).setPointerCapture(evt.pointerId);
 
-    if (isLevel1) {
-      clampOffset();
-      updateCenter();
-    } else {
-      const snapped = snapToNearest();
-      // The centered disc becomes the active disc
-      setActiveDisc(snapped);
-      progressRef.current = savedProgressRef.current;
-      progress.start(savedProgressRef.current);
-      if (savedProgressRef.current >= 1) {
-        enterPlayerMode(snapped);
+      if (progressRef.current > 0) {
+        savedProgressRef.current = progressRef.current;
+        if (progressRef.current !== 0.66) {
+          progress.start(0.66);
+        }
+        if (playerMode) {
+          playerSpring.start(0);
+          bgApi.start({ color: "rgb(0,0,0)" });
+        }
       }
-    }
-  }, [
-    snapToNearest,
-    clampOffset,
-    updateCenter,
-    progress,
-    enterPlayerMode,
-    activeDisc,
-  ]);
+    },
+    [progress, playerMode, playerSpring, bgApi],
+  );
 
   const handlePointerMove = useCallback(
     (evt: React.PointerEvent) => {
       if (!isHold) return;
-      offsetRef.current[0] += evt.movementX;
-      offsetRef.current[1] += evt.movementY;
-      offsetX.start(offsetRef.current[0]);
-      offsetY.start(offsetRef.current[1]);
-      updateCenter();
+
+      if (!isDraggingRef.current && pointerStartRef.current) {
+        const dx = evt.clientX - pointerStartRef.current.x;
+        const dy = evt.clientY - pointerStartRef.current.y;
+        if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
+          isDraggingRef.current = true;
+        }
+      }
+
+      if (isDraggingRef.current) {
+        offsetRef.current[0] += evt.movementX;
+        offsetRef.current[1] += evt.movementY;
+        offsetX.start(offsetRef.current[0]);
+        offsetY.start(offsetRef.current[1]);
+        updateCenter();
+      }
     },
     [isHold, offsetX, offsetY, updateCenter],
+  );
+
+  const handlePointerUp = useCallback(
+    (evt: React.PointerEvent) => {
+      setIsHold(false);
+
+      if (!isDraggingRef.current) {
+        // Click — find disc under pointer
+        const target = (evt.target as HTMLElement).closest("[data-vinyl-disc]");
+        if (target) {
+          const idx = Number(target.getAttribute("data-disc-index"));
+          if (!Number.isNaN(idx)) {
+            handleDiscClick(idx);
+          }
+        }
+        // Restore progress if changed on pointerDown
+        if (
+          progressRef.current !== savedProgressRef.current &&
+          savedProgressRef.current > 0
+        ) {
+          progressRef.current = savedProgressRef.current;
+          progress.start(savedProgressRef.current);
+          if (savedProgressRef.current >= 1 && activeDisc >= 0) {
+            enterPlayerMode(activeDisc);
+          }
+        }
+        return;
+      }
+
+      // Drag end — snap/clamp
+      const isLevel1 =
+        savedProgressRef.current === 0 || progressRef.current === 0;
+
+      if (isLevel1) {
+        clampOffset();
+        updateCenter();
+      } else {
+        const snapped = snapToNearest();
+        setActiveDisc(snapped);
+        progressRef.current = savedProgressRef.current;
+        progress.start(savedProgressRef.current);
+        if (savedProgressRef.current >= 1) {
+          enterPlayerMode(snapped);
+        }
+      }
+    },
+    [
+      snapToNearest,
+      clampOffset,
+      updateCenter,
+      progress,
+      enterPlayerMode,
+      activeDisc,
+      handleDiscClick,
+    ],
   );
 
   // ── Wheel handler ──────────────────────────────────────────────────────────
@@ -399,9 +448,9 @@ export function VinylGrid() {
     <div
       className="relative w-full h-screen overflow-hidden touch-none select-none cursor-none"
       onPointerDown={handlePointerDown}
-      onPointerUp={handlePointerUp}
-      onPointerLeave={handlePointerUp}
       onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onLostPointerCapture={handlePointerUp}
       onWheel={handleWheel}
     >
       <LiquidGlassFilter />
@@ -423,7 +472,6 @@ export function VinylGrid() {
             isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
             isPlayingDisc={idx === activeDisc}
-            onCenter={handleDiscClick}
             onHover={setHoveredDiscIndex}
           />
         ))}

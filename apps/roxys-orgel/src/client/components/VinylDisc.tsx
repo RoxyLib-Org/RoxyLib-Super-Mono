@@ -65,24 +65,15 @@ function getVinylColors(index: number): [string, string] {
 interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
-  /**
-   * 0 = compact mode (cover + 4px border, no compression, slightly smaller)
-   * 0.66 ≈ original state (full vinyl, gaussian size, original compression)
-   * 1 = slightly larger than original, max compression → triggers player
-   */
   progress: SpringValue<number>;
-  /** 0 = grid, 1 = player mode (only center visible) */
   playerMode: SpringValue<number>;
   index: number;
   isPlaying: boolean;
   isCenterDisc: boolean;
-  /** Whether this specific disc is the one currently playing (rotation gate) */
   isPlayingDisc: boolean;
-  onCenter: (index: number) => void;
   onHover: (index: number) => void;
 }
 
-/** One full rotation period for playing disc (ms) */
 const DISC_ROTATION_PERIOD = 8000;
 
 export function VinylDisc({
@@ -94,7 +85,6 @@ export function VinylDisc({
   isPlaying,
   isCenterDisc,
   isPlayingDisc,
-  onCenter,
   onHover,
 }: VinylDiscProps) {
   // Position: progress controls spacing and radial compression
@@ -206,8 +196,8 @@ export function VinylDisc({
   return (
     <animated.div
       data-vinyl-disc
+      data-disc-index={index}
       className="absolute cursor-none select-none"
-      onClick={() => onCenter(index)}
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(-1)}
       style={{
