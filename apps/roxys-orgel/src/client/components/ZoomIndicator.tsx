@@ -105,15 +105,18 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
             {ticks.map((tick, i) => (
               <div
                 key={i}
-                className="absolute left-0 right-0"
+                className="absolute"
                 style={{
                   top: `${tick.pos}px`,
+                  left: "50%",
+                  transform: "translateX(-50%)",
                   height: tick.isFull ? "2px" : "1px",
+                  width: tick.isFull ? "100%" : tick.isHalf ? "60%" : "30%",
                   backgroundColor: tick.isFull
                     ? "rgba(239, 68, 68, 0.5)"
                     : tick.isHalf
                       ? "rgba(255, 255, 255, 0.3)"
-                      : "rgba(255, 255, 255, 0.1)",
+                      : "rgba(255, 255, 255, 0.15)",
                 }}
               />
             ))}
