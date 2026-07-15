@@ -1,5 +1,5 @@
-import { animated, type SpringValue, to, useSpring } from "@react-spring/web";
-import { useCallback, useMemo, useRef } from "react";
+import { animated, type SpringValue, to, useSpring, useSpringValue } from "@react-spring/web";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 const { sqrt, min, max, pow } = Math;
 
 /** Diameter of each disc in px (base size) */
@@ -55,15 +55,16 @@ interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
   index: number;
+  isPlaying: boolean;
+  isCenterDisc: boolean;
   onCenter: (index: number) => void;
+  onHover: (index: number) => void;
 }
 
-/**
- * Vinyl disc with liquid glass outer ring:
- * - Outer ring: SVG displacement + backdrop-blur frosted glass (reveals distorted background)
- * - Inner area: full circular cover art image
- */
-export function VinylDisc({ coord, offset, index, onCenter }: VinylDiscProps) {
+/** One full rotation period for playing disc (ms) */
+const DISC_ROTATION_PERIOD = 8000;
+
+export function VinylDisc({ coord, offset, index, isPlaying, isCenterDisc, onCenter, onHover }: VinylDiscProps) {
   const [x, y] = useMemo(
     () => [
       offset[0].to((v) => v + coord[0]),
@@ -107,10 +108,55 @@ export function VinylDisc({ coord, offset, index, onCenter }: VinylDiscProps) {
     tiltApi.start({ rx: 0, ry: 0 });
   }, [tiltApi]);
 
+  // Disc rotation — spring-driven for smooth return to 0
+  const shouldSpin = isPlaying && isCenterDisc;
+  const discRotateSpring = useSpringValue(0, {
+    config: { mass: 1, tension: 120, friction: 20 },
+  });
+  const spinStartRef = useRef(0);
+  const spinAccumRef = useRef(0);
+  const spinRafRef = useRef(0);
+
+  // When no longer center disc: reset progress, spring back to 0
+  useEffect(() => {
+    if (!isCenterDisc) {
+      // Spring back to nearest multiple of 360 (effectively 0 visually)
+      const current = spinAccumRef.current % 360;
+      if (current > 0) {
+        // Animate to 0 via shortest path
+        const target = current > 180 ? 360 : 0;
+        discRotateSpring.start(target);
+      }
+      spinAccumRef.current = 0;
+    }
+  }, [isCenterDisc, discRotateSpring]);
+
+  // Spin when playing + center
+  useEffect(() => {
+    if (shouldSpin) {
+      spinStartRef.current = performance.now();
+      const tick = () => {
+        const elapsed = performance.now() - spinStartRef.current;
+        const deg = spinAccumRef.current + (elapsed / DISC_ROTATION_PERIOD) * 360;
+        discRotateSpring.set(deg % 360);
+        spinRafRef.current = requestAnimationFrame(tick);
+      };
+      spinRafRef.current = requestAnimationFrame(tick);
+      return () => {
+        const elapsed = performance.now() - spinStartRef.current;
+        spinAccumRef.current += (elapsed / DISC_ROTATION_PERIOD) * 360;
+        cancelAnimationFrame(spinRafRef.current);
+      };
+    }
+  }, [shouldSpin, discRotateSpring]);
+
   return (
     <animated.div
-      className="absolute cursor-pointer select-none"
+      data-vinyl-disc
+      className="absolute cursor-none select-none"
       onClick={() => onCenter(index)}
+      onMouseEnter={() => onHover(index)}
+      onMouseLeave={() => onHover(-1)}
       style={{
         left: x.to((v) => `calc(50% + ${v}px)`),
         top: y.to((v) => `calc(50% + ${v}px)`),
@@ -141,19 +187,19 @@ export function VinylDisc({ coord, offset, index, onCenter }: VinylDiscProps) {
           boxShadow:
             "0 8px 32px rgba(0,0,0,0.5), inset 0 3px 5px rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.5)",
           transform: to(
-            [distanceFromCenter, tiltSpring.rx, tiltSpring.ry],
-            (d, rx, ry) => {
-              const t = min(d / maxVisibleDist, 1);
-              const strength = max(0, 1 - t / 0.3);
-              return `perspective(400px) rotateX(${rx * strength}deg) rotateY(${ry * strength}deg)`;
-            },
+            [tiltSpring.rx, tiltSpring.ry],
+            (rx, ry) => `perspective(400px) rotateX(${rx}deg) rotateY(${ry}deg)`,
           ),
         }}
       >
         {/* Inner disc content at fixed size — clipped by parent */}
-        <div
+        <animated.div
           className="relative rounded-full shrink-0"
-          style={{ width: DISC_SIZE, height: DISC_SIZE }}
+          style={{
+            width: DISC_SIZE,
+            height: DISC_SIZE,
+            transform: discRotateSpring.to((r) => `rotate(${r}deg)`),
+          }}
         >
           {/* Vinyl grooves — repeating radial rings with extracted color */}
           <div
@@ -191,7 +237,7 @@ export function VinylDisc({ coord, offset, index, onCenter }: VinylDiscProps) {
               boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
             }}
           />
-        </div>
+        </animated.div>
 
         {/* Top highlight arc — rendered above content, still inside clip */}
         <div

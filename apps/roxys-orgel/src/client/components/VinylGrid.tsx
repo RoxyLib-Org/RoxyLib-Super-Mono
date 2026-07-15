@@ -1,5 +1,6 @@
 import { useSpringValue } from "@react-spring/web";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { CustomCursor } from "./CustomCursor";
 import { HEX_RADIUS, LiquidGlassFilter, VinylDisc } from "./VinylDisc";
 
 const { sqrt, pow } = Math;
@@ -82,11 +83,23 @@ export function VinylGrid() {
   );
 
   const [isHold, setIsHold] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
+  const [centerDiscIndex, setCenterDiscIndex] = useState(0);
   const offsetRef = useRef([0, 0]);
 
   const springConfig = { tension: 170, friction: 24 };
   const offsetX = useSpringValue(0, { config: springConfig });
   const offsetY = useSpringValue(0, { config: springConfig });
+
+  const updateCenter = useCallback(() => {
+    const nearest = findNearestDisc(
+      coords,
+      offsetRef.current[0],
+      offsetRef.current[1],
+    );
+    setCenterDiscIndex(nearest);
+  }, [coords]);
 
   const snapToNearest = useCallback(() => {
     const nearest = findNearestDisc(
@@ -98,17 +111,26 @@ export function VinylGrid() {
     offsetRef.current = [-cx, -cy];
     offsetX.start(-cx);
     offsetY.start(-cy);
+    setCenterDiscIndex(nearest);
   }, [coords, offsetX, offsetY]);
 
   const handleCenter = useCallback(
     (index: number) => {
+      if (index === centerDiscIndex) {
+        // Clicking the current center disc toggles play/pause
+        setIsPlaying((p) => !p);
+        return;
+      }
       const [cx, cy] = coords[index];
       offsetRef.current = [-cx, -cy];
       offsetX.start(-cx);
       offsetY.start(-cy);
+      setCenterDiscIndex(index);
+      setIsPlaying(true);
     },
-    [coords, offsetX, offsetY],
+    [coords, offsetX, offsetY, centerDiscIndex],
   );
+
 
   const handlePointerDown = useCallback(() => {
     setIsHold(true);
@@ -128,13 +150,14 @@ export function VinylGrid() {
 
       offsetX.start(offsetRef.current[0]);
       offsetY.start(offsetRef.current[1]);
+      updateCenter();
     },
-    [isHold, offsetX, offsetY],
+    [isHold, offsetX, offsetY, updateCenter],
   );
 
   return (
     <div
-      className="relative w-full h-screen overflow-hidden touch-none select-none"
+      className="relative w-full h-screen overflow-hidden touch-none select-none cursor-none"
       onPointerDown={handlePointerDown}
       onPointerUp={handlePointerUp}
       onPointerLeave={handlePointerUp}
@@ -154,10 +177,18 @@ export function VinylGrid() {
             coord={coord}
             offset={[offsetX, offsetY]}
             index={idx}
+            isPlaying={isPlaying}
+            isCenterDisc={idx === centerDiscIndex}
             onCenter={handleCenter}
+            onHover={setHoveredDiscIndex}
           />
         ))}
       </div>
+      <CustomCursor
+        isPlaying={isPlaying}
+        hoveredDiscIndex={hoveredDiscIndex}
+        centerDiscIndex={centerDiscIndex}
+      />
     </div>
   );
 }
