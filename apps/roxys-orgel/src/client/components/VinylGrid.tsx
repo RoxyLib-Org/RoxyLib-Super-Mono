@@ -119,7 +119,7 @@ export function VinylGrid() {
 
   const [isHold, setIsHold] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [atLevel1, setAtLevel1] = useState(false);
+  const [_atLevel1, setAtLevel1] = useState(false);
   const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
@@ -213,14 +213,12 @@ export function VinylGrid() {
       const isLevel1 = progressRef.current === 0;
 
       if (isLevel1) {
-        // Level 1: click any disc → start playing it, center it, jump to level 3
+        // Level 1: click disc → center it + jump to level 3, don't change playback
         const [cx, cy] = coords[index];
         offsetRef.current = [-cx, -cy];
         offsetX.start(-cx);
         offsetY.start(-cy);
         setCenterDiscIndex(index);
-        setPlayingDiscIndex(index);
-        setIsPlaying(true);
         setAtLevel1(false);
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
@@ -407,7 +405,7 @@ export function VinylGrid() {
             progress={progress}
             playerMode={playerSpring}
             index={idx}
-            isPlaying={isPlaying && !atLevel1}
+            isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
             onCenter={handleCenter}
             onHover={setHoveredDiscIndex}
