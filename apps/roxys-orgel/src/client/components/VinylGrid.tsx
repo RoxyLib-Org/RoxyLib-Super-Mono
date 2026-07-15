@@ -8,6 +8,7 @@ import {
   LiquidGlassFilter,
   VinylDisc,
 } from "./VinylDisc";
+import { ZoomIndicator } from "./ZoomIndicator";
 
 const { sqrt, pow, max } = Math;
 
@@ -431,6 +432,8 @@ export function VinylGrid() {
         onPrev={handlePrev}
         onNext={handleNext}
       />
+
+      <ZoomIndicator progress={progress} />
 
       <CustomCursor
         isPlaying={isPlaying}
