@@ -2,7 +2,7 @@ import { animated, useSpring, useSpringValue } from "@react-spring/web";
 import { useEffect, useRef, useState } from "react";
 
 const SMALL_SIZE = 40;
-const LARGE_SIZE = 80;
+const LARGE_SIZE = 133;
 
 interface CustomCursorProps {
   /** Global playing state */
@@ -153,7 +153,7 @@ export function CustomCursor({
           }}
         >
           <animated.span
-            className="text-black font-bold text-xs tracking-wider select-none"
+            className="text-black font-bold text-base tracking-wider select-none"
             style={{
               opacity: spring.textOpacity,
               transform: rotateSpring.to((r) => `rotate(${-45 + r}deg)`),
@@ -165,14 +165,15 @@ export function CustomCursor({
 
         {/* PAUSE face (back, pre-rotated 180deg) */}
         <animated.div
-          className="absolute inset-0 rounded-full bg-white flex items-center justify-center"
+          className="absolute inset-0 rounded-full flex items-center justify-center"
           style={{
             backfaceVisibility: "hidden",
             transform: "rotateY(180deg)",
+            background: "oklch(0.5 0.25 25)",
           }}
         >
           <animated.span
-            className="text-black font-bold text-xs tracking-wider select-none"
+            className="text-white font-bold text-base tracking-wider select-none"
             style={{ opacity: spring.textOpacity, transform: "rotate(-45deg)" }}
           >
             PAUSE
