@@ -37,7 +37,6 @@ export function ModeButtons({
         style={{
           opacity: playerMode.to((pm) => pm),
           pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
-          transform: playerMode.to((pm) => `scale(${0.6 + pm * 0.4})`),
         }}
       >
         <svg
@@ -62,10 +61,6 @@ export function ModeButtons({
           ),
           pointerEvents: to([progress, playerMode], (p, pm) =>
             p > 0.1 && pm < 0.5 ? "auto" : "none",
-          ),
-          transform: to(
-            [progress, playerMode],
-            (p, pm) => `scale(${0.6 + Math.min(p * 3, 1) * 0.4 * (1 - pm)})`,
           ),
         }}
       >
