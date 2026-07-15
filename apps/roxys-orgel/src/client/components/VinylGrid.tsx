@@ -203,6 +203,10 @@ export function VinylGrid() {
       if (snapped >= 1) {
         enterPlayerMode(centerDiscIndex);
       }
+      // Level 1: stop playback
+      if (snapped === 0) {
+        setIsPlaying(false);
+      }
     }, 150);
   }, [progress, enterPlayerMode, centerDiscIndex]);
 
