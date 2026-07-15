@@ -19,3 +19,7 @@ migrations_dir = "../../drizzle"
 [[kv_namespaces]]
 binding = "KV"
 id = "07556907bfe245c9a28817ea61418367"
+
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "rx-orgel"
