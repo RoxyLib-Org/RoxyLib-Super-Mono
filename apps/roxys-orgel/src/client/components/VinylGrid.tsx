@@ -1,6 +1,7 @@
 import { animated, useSpring, useSpringValue } from "@react-spring/web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CustomCursor } from "./CustomCursor";
+import { ModeButtons } from "./ModeButtons";
 import { TransportControls } from "./TransportControls";
 import {
   getVinylColor,
@@ -238,6 +239,34 @@ export function VinylGrid() {
     playerSpring.start(0);
     bgApi.start({ color: "rgb(0,0,0)" });
   }, [playerSpring, bgApi]);
+
+  const handleMinimize = useCallback(() => {
+    progressRef.current = 0;
+    savedProgressRef.current = 0;
+    progress.start(0);
+    setAtLevel1(true);
+  }, [progress]);
+
+  const handleMaximize = useCallback(() => {
+    const target =
+      activeDisc >= 0
+        ? activeDisc
+        : findNearestDisc(coords, offsetRef.current[0], offsetRef.current[1]);
+    panToDisc(target);
+    progressRef.current = 1;
+    savedProgressRef.current = 1;
+    progress.start(1);
+    enterPlayerMode(target);
+    setAtLevel1(false);
+  }, [activeDisc, coords, panToDisc, progress, enterPlayerMode]);
+
+  const handleClosePlayer = useCallback(() => {
+    exitPlayerMode();
+    progressRef.current = 0.66;
+    savedProgressRef.current = 0.66;
+    progress.start(0.66);
+    setAtLevel1(false);
+  }, [exitPlayerMode, progress]);
 
   // ── Snap timer ─────────────────────────────────────────────────────────────
   const scheduleSnap = useCallback(() => {
@@ -561,6 +590,14 @@ export function VinylGrid() {
           />
         ))}
       </div>
+
+      <ModeButtons
+        progress={progress}
+        playerMode={playerSpring}
+        onMinimize={handleMinimize}
+        onMaximize={handleMaximize}
+        onClosePlayer={handleClosePlayer}
+      />
 
       <TransportControls
         visible={playerSpring}
