@@ -62,6 +62,8 @@ interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
   zoom: SpringValue<number>;
+  /** 0 = grid mode, 1 = player mode (single disc centered upper) */
+  playerMode: SpringValue<number>;
   index: number;
   isPlaying: boolean;
   isCenterDisc: boolean;
@@ -76,6 +78,7 @@ export function VinylDisc({
   coord,
   offset,
   zoom,
+  playerMode,
   index,
   isPlaying,
   isCenterDisc,
@@ -86,7 +89,7 @@ export function VinylDisc({
     // Raw position relative to viewport center
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    // Radial compression modulated by zoom: zoom=0 → no compression, zoom=1 → max
+    // Radial compression modulated by zoom: zoom=0 → no compression, zoom=1 → max compression
     const COMPRESS_K = 0.0003;
     return [
       to([rawX, rawY, zoom], (xv, yv, z) => {
@@ -149,10 +152,8 @@ export function VinylDisc({
   // When no longer center disc: reset progress, spring back to 0
   useEffect(() => {
     if (!isCenterDisc) {
-      // Spring back to nearest multiple of 360 (effectively 0 visually)
       const current = spinAccumRef.current % 360;
       if (current > 0) {
-        // Animate to 0 via shortest path
         const target = current > 180 ? 360 : 0;
         discRotateSpring.start(target);
       }
@@ -188,25 +189,35 @@ export function VinylDisc({
       onMouseEnter={() => onHover(index)}
       onMouseLeave={() => onHover(-1)}
       style={{
-        left: x.to((v) => `calc(50% + ${v}px)`),
-        top: y.to((v) => `calc(50% + ${v}px)`),
-        transform: "translate(-50%, -50%)",
-        pointerEvents: to([distanceFromCenter, zoom], (d, z) => {
-          // At high zoom, only center disc is interactive
-          if (z > 0.9 && d > 50) return "none";
-          return d > maxVisibleDist ? "none" : "auto";
+        // In player mode: center disc moves to center-upper, others fade away
+        left: to([x, playerMode], (xv, pm) => {
+          if (pm <= 0) return `calc(50% + ${xv}px)`;
+          // Center disc → viewport center, others stay
+          if (isCenterDisc) {
+            const target = 0; // viewport center
+            const interp = xv * (1 - pm) + target * pm;
+            return `calc(50% + ${interp}px)`;
+          }
+          return `calc(50% + ${xv}px)`;
         }),
-        opacity: to([distanceFromCenter, zoom], (d, z) => {
-          // Non-center discs fade out as zoom increases
-          if (d < 50) return 1; // center disc always visible
-          // Fade: starts at zoom 0.5, gone by zoom 1
-          const zoomFade = max(0, 1 - max(0, z - 0.5) * 2);
-          // Distance fade (existing behavior)
-          const t = min(d / maxVisibleDist, 1);
-          const fadeStart = 0.8;
-          const distFade =
-            t < fadeStart ? 1 : max(0, 1 - (t - fadeStart) / (1 - fadeStart));
-          return zoomFade * distFade;
+        top: to([y, playerMode], (yv, pm) => {
+          if (pm <= 0) return `calc(50% + ${yv}px)`;
+          if (isCenterDisc) {
+            // Move to 35% from top (centered-upper)
+            const targetOffset = -window.innerHeight * 0.15;
+            const interp = yv * (1 - pm) + targetOffset * pm;
+            return `calc(50% + ${interp}px)`;
+          }
+          return `calc(50% + ${yv}px)`;
+        }),
+        transform: "translate(-50%, -50%)",
+        pointerEvents: distanceFromCenter.to((d) =>
+          d > maxVisibleDist ? "none" : "auto",
+        ),
+        // In player mode, non-center discs fade out
+        opacity: playerMode.to((pm) => {
+          if (isCenterDisc) return 1;
+          return max(0, 1 - pm * 2); // fade quickly
         }),
       }}
     >
@@ -217,22 +228,28 @@ export function VinylDisc({
         onMouseLeave={handleMouseLeave}
         className="rounded-full overflow-hidden flex items-center justify-center relative"
         style={{
-          width: to([distanceFromCenter, zoom], (d, z) => {
-            // At zoom=0: uniform size for all discs
-            // At zoom>0: gaussian falloff based on distance
-            const t = min(d / maxVisibleDist, 1);
-            const fullSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            const size = 1 * (1 - z) + fullSize * z;
-            return `${size * DISC_SIZE}px`;
+          // Size: slightly smaller at zoom=0 (compact border mode), slightly larger at zoom=1
+          width: to([distanceFromCenter, zoom, playerMode], (_d, z, pm) => {
+            const baseSize = 0.85 + 0.15 * z; // 0.85 → 1.0
+            if (isCenterDisc && pm > 0) {
+              // In player mode, center disc grows a bit
+              const playerSize = 1.2;
+              const s = baseSize * (1 - pm) + playerSize * pm;
+              return `${s * DISC_SIZE}px`;
+            }
+            return `${baseSize * DISC_SIZE}px`;
           }),
-          height: to([distanceFromCenter, zoom], (d, z) => {
-            const t = min(d / maxVisibleDist, 1);
-            const fullSize = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            const size = 1 * (1 - z) + fullSize * z;
-            return `${size * DISC_SIZE}px`;
+          height: to([distanceFromCenter, zoom, playerMode], (_d, z, pm) => {
+            const baseSize = 0.85 + 0.15 * z;
+            if (isCenterDisc && pm > 0) {
+              const playerSize = 1.2;
+              const s = baseSize * (1 - pm) + playerSize * pm;
+              return `${s * DISC_SIZE}px`;
+            }
+            return `${baseSize * DISC_SIZE}px`;
           }),
           background: vinylBase,
-          // At zoom=0: solid 4px border; transition to full shadow
+          // Border: 4px solid at zoom=0, fades out at zoom=1
           border: zoom.to((z) => {
             const borderWidth = 4 * (1 - z);
             return borderWidth > 0.5
@@ -240,8 +257,7 @@ export function VinylDisc({
               : "none";
           }),
           boxShadow: zoom.to((z) => {
-            const opacity = z;
-            return `0 8px 32px rgba(0,0,0,${0.5 * opacity}), inset 0 3px 5px rgba(255,255,255,${0.3 * opacity}), inset 0 -3px 6px rgba(0,0,0,${0.5 * opacity})`;
+            return `0 8px 32px rgba(0,0,0,${0.5 * z}), inset 0 3px 5px rgba(255,255,255,${0.3 * z}), inset 0 -3px 6px rgba(0,0,0,${0.5 * z})`;
           }),
           transform: to(
             [tiltSpring.rx, tiltSpring.ry],
@@ -257,7 +273,7 @@ export function VinylDisc({
             width: DISC_SIZE,
             height: DISC_SIZE,
             transform: discRotateSpring.to((r) => `rotate(${r}deg)`),
-            // At zoom=0: hide grooves/art, show only border color
+            // zoom controls vinyl texture visibility: 0=hidden (just border color), 1=full vinyl
             opacity: zoom.to((z) => z),
           }}
         >
@@ -295,15 +311,6 @@ export function VinylDisc({
               inset: "8%",
               backgroundImage: `url(${coverUrl})`,
               boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
-              transform: to([distanceFromCenter, zoom], (d, z) => {
-                const t = min(d / maxVisibleDist, 1);
-                const fadeStart = 0.8;
-                const fade =
-                  t < fadeStart
-                    ? 1
-                    : max(0, 1 - (t - fadeStart) / (1 - fadeStart));
-                return `scale(${fade * z})`;
-              }),
             }}
           />
         </animated.div>

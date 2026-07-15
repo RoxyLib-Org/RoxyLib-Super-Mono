@@ -56,6 +56,28 @@ function generateHexPositions(
 const DISC_COUNT = 61;
 
 /**
+ * 4 zoom levels (snap targets):
+ * 0 = minimum compression + solid border
+ * 1 = mild compression
+ * 2 = near-original (no compression feel)
+ * 3 = max — triggers player mode
+ */
+const ZOOM_LEVELS = [0, 0.33, 0.66, 1] as const;
+
+function snapToLevel(value: number): number {
+  let closest = 0;
+  let minDist = Math.abs(value - ZOOM_LEVELS[0]);
+  for (let i = 1; i < ZOOM_LEVELS.length; i++) {
+    const d = Math.abs(value - ZOOM_LEVELS[i]);
+    if (d < minDist) {
+      minDist = d;
+      closest = i;
+    }
+  }
+  return ZOOM_LEVELS[closest];
+}
+
+/**
  * Find the index of the disc whose coord is closest to the negated offset
  * (i.e. the disc currently nearest the viewport center).
  */
@@ -96,15 +118,22 @@ export function VinylGrid() {
 
   const [isHold, setIsHold] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
   const offsetRef = useRef([0, 0]);
   const zoomRef = useRef(0);
+  const snapTimerRef = useRef(0);
 
   const springConfig = { tension: 170, friction: 24 };
   const offsetX = useSpringValue(0, { config: springConfig });
   const offsetY = useSpringValue(0, { config: springConfig });
   const zoom = useSpringValue(0, { config: { tension: 200, friction: 26 } });
+
+  // Player mode spring (0 = grid, 1 = player)
+  const playerSpring = useSpringValue(0, {
+    config: { tension: 160, friction: 22 },
+  });
 
   // Background color spring
   const [bgSpring, bgApi] = useSpring(() => ({
@@ -134,6 +163,36 @@ export function VinylGrid() {
     setCenterDiscIndex(nearest);
   }, [coords, offsetX, offsetY]);
 
+  const enterPlayerMode = useCallback(
+    (discIndex: number) => {
+      setPlayerMode(true);
+      setIsPlaying(true);
+      playerSpring.start(1);
+      bgApi.start({ color: getVinylColor(discIndex) });
+    },
+    [playerSpring, bgApi],
+  );
+
+  const exitPlayerMode = useCallback(() => {
+    setPlayerMode(false);
+    playerSpring.start(0);
+    bgApi.start({ color: "rgb(0,0,0)" });
+  }, [playerSpring, bgApi]);
+
+  const scheduleSnap = useCallback(() => {
+    clearTimeout(snapTimerRef.current);
+    snapTimerRef.current = window.setTimeout(() => {
+      const snapped = snapToLevel(zoomRef.current);
+      zoomRef.current = snapped;
+      zoom.start(snapped);
+
+      // Level 3 (max) triggers player mode
+      if (snapped >= 1) {
+        enterPlayerMode(centerDiscIndex);
+      }
+    }, 150);
+  }, [zoom, enterPlayerMode, centerDiscIndex]);
+
   const handleCenter = useCallback(
     (index: number) => {
       if (index === centerDiscIndex) {
@@ -146,36 +205,49 @@ export function VinylGrid() {
       offsetY.start(-cy);
       setCenterDiscIndex(index);
       setIsPlaying(true);
-      // Update background color for new center
-      if (zoomRef.current > 0.5) {
+      if (playerMode) {
         bgApi.start({ color: getVinylColor(index) });
       }
     },
-    [coords, offsetX, offsetY, centerDiscIndex, bgApi],
+    [coords, offsetX, offsetY, centerDiscIndex, playerMode, bgApi],
   );
 
   const handlePrev = useCallback(() => {
     const prev = (centerDiscIndex - 1 + coords.length) % coords.length;
-    handleCenter(prev);
-  }, [centerDiscIndex, coords.length, handleCenter]);
+    const [cx, cy] = coords[prev];
+    offsetRef.current = [-cx, -cy];
+    offsetX.start(-cx);
+    offsetY.start(-cy);
+    setCenterDiscIndex(prev);
+    setIsPlaying(true);
+    bgApi.start({ color: getVinylColor(prev) });
+  }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
 
   const handleNext = useCallback(() => {
     const next = (centerDiscIndex + 1) % coords.length;
-    handleCenter(next);
-  }, [centerDiscIndex, coords.length, handleCenter]);
+    const [cx, cy] = coords[next];
+    offsetRef.current = [-cx, -cy];
+    offsetX.start(-cx);
+    offsetY.start(-cy);
+    setCenterDiscIndex(next);
+    setIsPlaying(true);
+    bgApi.start({ color: getVinylColor(next) });
+  }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
 
   const handlePointerDown = useCallback(() => {
-    setIsHold(true);
-  }, []);
+    if (!playerMode) setIsHold(true);
+  }, [playerMode]);
 
   const handlePointerUp = useCallback(() => {
-    setIsHold(false);
-    snapToNearest();
-  }, [snapToNearest]);
+    if (!playerMode) {
+      setIsHold(false);
+      snapToNearest();
+    }
+  }, [playerMode, snapToNearest]);
 
   const handlePointerMove = useCallback(
     (evt: React.PointerEvent) => {
-      if (!isHold) return;
+      if (!isHold || playerMode) return;
 
       offsetRef.current[0] += evt.movementX;
       offsetRef.current[1] += evt.movementY;
@@ -184,25 +256,34 @@ export function VinylGrid() {
       offsetY.start(offsetRef.current[1]);
       updateCenter();
     },
-    [isHold, offsetX, offsetY, updateCenter],
+    [isHold, playerMode, offsetX, offsetY, updateCenter],
   );
 
   const handleWheel = useCallback(
     (evt: React.WheelEvent) => {
       evt.preventDefault();
-      const delta = evt.deltaY > 0 ? 0.05 : -0.05;
+
+      if (playerMode) {
+        // In player mode, scroll down exits
+        if (evt.deltaY > 0) {
+          exitPlayerMode();
+          // Snap to level 2 (one below max)
+          zoomRef.current = ZOOM_LEVELS[2];
+          zoom.start(ZOOM_LEVELS[2]);
+        }
+        return;
+      }
+
+      // Scroll up → increase zoom, scroll down → decrease
+      const delta = evt.deltaY > 0 ? -0.04 : 0.04;
       const next = Math.max(0, Math.min(1, zoomRef.current + delta));
       zoomRef.current = next;
       zoom.start(next);
 
-      // Background: lerp to vinyl color when zoomed in
-      if (next > 0.5) {
-        bgApi.start({ color: getVinylColor(centerDiscIndex) });
-      } else {
-        bgApi.start({ color: "rgb(0,0,0)" });
-      }
+      // Schedule snap to nearest level after scrolling stops
+      scheduleSnap();
     },
-    [zoom, bgApi, centerDiscIndex],
+    [zoom, playerMode, exitPlayerMode, scheduleSnap],
   );
 
   return (
@@ -231,6 +312,7 @@ export function VinylGrid() {
             coord={coord}
             offset={[offsetX, offsetY]}
             zoom={zoom}
+            playerMode={playerSpring}
             index={idx}
             isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
@@ -240,9 +322,9 @@ export function VinylGrid() {
         ))}
       </div>
 
-      {/* Transport controls — visible when zoomed in */}
+      {/* Transport controls — visible in player mode */}
       <TransportControls
-        zoom={zoom}
+        visible={playerSpring}
         isPlaying={isPlaying}
         onPlayPause={() => setIsPlaying((p) => !p)}
         onPrev={handlePrev}

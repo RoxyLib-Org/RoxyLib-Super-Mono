@@ -2,7 +2,8 @@ import { animated, type SpringValue } from "@react-spring/web";
 import { useEffect, useRef, useState } from "react";
 
 interface TransportControlsProps {
-  zoom: SpringValue<number>;
+  /** 0 = hidden, 1 = fully visible (spring-driven) */
+  visible: SpringValue<number>;
   isPlaying: boolean;
   onPlayPause: () => void;
   onPrev: () => void;
@@ -19,7 +20,7 @@ function formatTime(seconds: number): string {
 const TOTAL_DURATION = 240;
 
 export function TransportControls({
-  zoom,
+  visible,
   isPlaying,
   onPlayPause,
   onPrev,
@@ -51,17 +52,15 @@ export function TransportControls({
 
   return (
     <animated.div
-      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-3 pb-10 pointer-events-none"
+      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-3 pb-10"
       style={{
-        opacity: zoom.to((z) => Math.max(0, (z - 0.6) * 2.5)),
-        transform: zoom.to((z) => {
-          const t = Math.max(0, (z - 0.6) * 2.5);
-          return `translateY(${(1 - t) * 30}px)`;
-        }),
+        opacity: visible.to((v) => v),
+        transform: visible.to((v) => `translateY(${(1 - v) * 30}px)`),
+        pointerEvents: visible.to((v) => (v > 0.5 ? "auto" : "none")),
       }}
     >
       {/* Progress bar */}
-      <div className="w-80 max-w-[80vw] flex items-center gap-3 pointer-events-auto">
+      <div className="w-80 max-w-[80vw] flex items-center gap-3">
         <span className="text-white/60 text-xs font-mono w-10 text-right">
           {formatTime(elapsed)}
         </span>
@@ -77,7 +76,7 @@ export function TransportControls({
       </div>
 
       {/* Transport buttons */}
-      <div className="flex items-center gap-8 pointer-events-auto">
+      <div className="flex items-center gap-8">
         <button
           type="button"
           onClick={onPrev}
