@@ -9,7 +9,7 @@ import {
   VinylDisc,
 } from "./VinylDisc";
 
-const { sqrt, pow, max, min } = Math;
+const { sqrt, pow, max } = Math;
 
 const DIRECTIONS: [number, number][] = [
   [1, 0],
@@ -54,7 +54,6 @@ function generateHexPositions(
 }
 
 const DISC_COUNT = 61;
-
 const SNAP_LEVELS = [0, 0.33, 0.66, 1];
 
 function snapToLevel(value: number): number {
@@ -88,10 +87,6 @@ function findNearestDisc(
   return nearest;
 }
 
-/**
- * Compute bounding box of hex grid coords with some padding.
- * Returns max distance from center we allow offset to reach.
- */
 function computeBounds(
   coords: Array<[number, number]>,
   padding: number,
@@ -101,34 +96,53 @@ function computeBounds(
     const d = sqrt(cx * cx + cy * cy);
     if (d > maxDist) maxDist = d;
   }
-  // Allow panning up to the outermost disc minus padding (keep edges visible)
   return max(0, maxDist - padding);
 }
+
+// ──────────────────────────────────────────────────────────────────────────────
+// STATE MODEL:
+//
+// 1. `activeDisc` — the disc currently selected/playing. Only changes on
+//    explicit user action (click, prev, next). This is the SINGLE source of
+//    truth for "which disc is rotating" and "which disc is the interaction
+//    target". -1 means nothing selected.
+//
+// 2. `isPlaying` — whether audio is playing. Only `activeDisc` rotates.
+//
+// 3. `progress` (spring, 0-1) — zoom/compression level.
+//    Snap levels: 0 = browse, 0.33 = slightly zoomed, 0.66 = focused, 1 = player
+//
+// 4. `playerMode` (boolean) + `playerSpring` — controls overlay visible.
+//    Triggered when progress snaps to 1.
+//
+// 5. `centerDiscIndex` — purely visual, the disc nearest screen center.
+//    Used ONLY for size gaussian (distanceFromCenter). NOT used for playback.
+// ──────────────────────────────────────────────────────────────────────────────
 
 export function VinylGrid() {
   const coords = useMemo(
     () => generateHexPositions(HEX_RADIUS, DISC_COUNT),
     [],
   );
-
-  // Max offset allowed so edges don't disappear (tight safe area)
   const maxOffset = useMemo(
     () => computeBounds(coords, HEX_RADIUS * 2),
     [coords],
   );
 
+  // ── State ──────────────────────────────────────────────────────────────────
   const [isHold, setIsHold] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [_atLevel1, setAtLevel1] = useState(false);
+  const [activeDisc, setActiveDisc] = useState(-1); // -1 = none
   const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
-  const [playingDiscIndex, setPlayingDiscIndex] = useState(-1);
+
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
   const savedProgressRef = useRef(0.66);
   const snapTimerRef = useRef(0);
 
+  // ── Springs ────────────────────────────────────────────────────────────────
   const springConfig = { tension: 170, friction: 24 };
   const offsetX = useSpringValue(0, { config: springConfig });
   const offsetY = useSpringValue(0, { config: springConfig });
@@ -138,12 +152,12 @@ export function VinylGrid() {
   const playerSpring = useSpringValue(0, {
     config: { tension: 160, friction: 22 },
   });
-
   const [bgSpring, bgApi] = useSpring(() => ({
     color: "rgb(0,0,0)",
     config: { tension: 200, friction: 26 },
   }));
 
+  // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
     const nearest = findNearestDisc(
       coords,
@@ -153,20 +167,26 @@ export function VinylGrid() {
     setCenterDiscIndex(nearest);
   }, [coords]);
 
+  const panToDisc = useCallback(
+    (index: number) => {
+      const [cx, cy] = coords[index];
+      offsetRef.current = [-cx, -cy];
+      offsetX.start(-cx);
+      offsetY.start(-cy);
+      setCenterDiscIndex(index);
+    },
+    [coords, offsetX, offsetY],
+  );
+
   const snapToNearest = useCallback(() => {
     const nearest = findNearestDisc(
       coords,
       offsetRef.current[0],
       offsetRef.current[1],
     );
-    const [cx, cy] = coords[nearest];
-    offsetRef.current = [-cx, -cy];
-    offsetX.start(-cx);
-    offsetY.start(-cy);
-    setCenterDiscIndex(nearest);
-  }, [coords, offsetX, offsetY]);
+    panToDisc(nearest);
+  }, [coords, panToDisc]);
 
-  /** Clamp offset to safe bounds and spring back */
   const clampOffset = useCallback(() => {
     const [ox, oy] = offsetRef.current;
     const dist = sqrt(ox * ox + oy * oy);
@@ -182,6 +202,7 @@ export function VinylGrid() {
     (discIndex: number) => {
       setPlayerMode(true);
       setIsPlaying(true);
+      setActiveDisc(discIndex);
       playerSpring.start(1);
       bgApi.start({ color: getVinylColor(discIndex) });
     },
@@ -194,6 +215,7 @@ export function VinylGrid() {
     bgApi.start({ color: "rgb(0,0,0)" });
   }, [playerSpring, bgApi]);
 
+  // ── Snap timer ─────────────────────────────────────────────────────────────
   const scheduleSnap = useCallback(() => {
     clearTimeout(snapTimerRef.current);
     snapTimerRef.current = window.setTimeout(() => {
@@ -202,88 +224,80 @@ export function VinylGrid() {
       progress.start(snapped);
 
       if (snapped >= 1) {
-        enterPlayerMode(centerDiscIndex);
+        // Enter player mode with the active disc (or nearest if none)
+        const target =
+          activeDisc >= 0
+            ? activeDisc
+            : findNearestDisc(
+                coords,
+                offsetRef.current[0],
+                offsetRef.current[1],
+              );
+        panToDisc(target);
+        enterPlayerMode(target);
       }
-      setAtLevel1(snapped === 0);
     }, 150);
-  }, [progress, enterPlayerMode, centerDiscIndex]);
+  }, [progress, enterPlayerMode, activeDisc, coords, panToDisc]);
 
-  const handleCenter = useCallback(
+  // ── Click handler ──────────────────────────────────────────────────────────
+  const handleDiscClick = useCallback(
     (index: number) => {
       const isLevel1 = progressRef.current === 0;
 
       if (isLevel1) {
-        // Level 1: click disc → center it + jump to level 3, don't change playback
-        const [cx, cy] = coords[index];
-        offsetRef.current = [-cx, -cy];
-        offsetX.start(-cx);
-        offsetY.start(-cy);
-        setCenterDiscIndex(index);
-        setAtLevel1(false);
+        // Level 1 browse: click → select disc, start playing, jump to level 3
+        panToDisc(index);
+        setActiveDisc(index);
+        setIsPlaying(true);
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
         progress.start(0.66);
         return;
       }
 
-      if (index === centerDiscIndex) {
-        // Toggle play/pause on current center
-        setIsPlaying((p) => {
-          const next = !p;
-          setPlayingDiscIndex(next ? index : -1);
-          return next;
-        });
+      if (index === activeDisc) {
+        // Click the active disc → toggle play/pause
+        setIsPlaying((p) => !p);
         return;
       }
 
-      // Switch to different disc
-      const [cx, cy] = coords[index];
-      offsetRef.current = [-cx, -cy];
-      offsetX.start(-cx);
-      offsetY.start(-cy);
-      setCenterDiscIndex(index);
-      setPlayingDiscIndex(index);
+      // Click a different disc → switch to it, start playing
+      panToDisc(index);
+      setActiveDisc(index);
       setIsPlaying(true);
       if (playerMode) {
         bgApi.start({ color: getVinylColor(index) });
       }
     },
-    [coords, offsetX, offsetY, centerDiscIndex, playerMode, bgApi, progress],
+    [activeDisc, panToDisc, progress, playerMode, bgApi],
   );
 
+  // ── Prev / Next ────────────────────────────────────────────────────────────
   const handlePrev = useCallback(() => {
-    const prev = (centerDiscIndex - 1 + coords.length) % coords.length;
-    const [cx, cy] = coords[prev];
-    offsetRef.current = [-cx, -cy];
-    offsetX.start(-cx);
-    offsetY.start(-cy);
-    setCenterDiscIndex(prev);
-    setPlayingDiscIndex(prev);
+    const prev = (activeDisc - 1 + coords.length) % coords.length;
+    panToDisc(prev);
+    setActiveDisc(prev);
     setIsPlaying(true);
     bgApi.start({ color: getVinylColor(prev) });
-  }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
+  }, [activeDisc, coords, panToDisc, bgApi]);
 
   const handleNext = useCallback(() => {
-    const next = (centerDiscIndex + 1) % coords.length;
-    const [cx, cy] = coords[next];
-    offsetRef.current = [-cx, -cy];
-    offsetX.start(-cx);
-    offsetY.start(-cy);
-    setCenterDiscIndex(next);
-    setPlayingDiscIndex(next);
+    const next = (activeDisc + 1) % coords.length;
+    panToDisc(next);
+    setActiveDisc(next);
     setIsPlaying(true);
     bgApi.start({ color: getVinylColor(next) });
-  }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
+  }, [activeDisc, coords, panToDisc, bgApi]);
 
+  // ── Pointer handlers ───────────────────────────────────────────────────────
   const handlePointerDown = useCallback(() => {
     setIsHold(true);
-    // At level 2/3/4 (progress > 0): temporarily zoom to level 3 during drag
     if (progressRef.current > 0) {
       savedProgressRef.current = progressRef.current;
+      // During drag: drop to level 3 visual, hide player if active
       if (progressRef.current !== 0.66) {
         progress.start(0.66);
       }
-      // Temporarily exit player mode visuals during drag
       if (playerMode) {
         playerSpring.start(0);
         bgApi.start({ color: "rgb(0,0,0)" });
@@ -293,22 +307,18 @@ export function VinylGrid() {
 
   const handlePointerUp = useCallback(() => {
     setIsHold(false);
-
     const isLevel1 =
       savedProgressRef.current === 0 || progressRef.current === 0;
 
     if (isLevel1) {
-      // Level 1: free drag, no snap-to-center, just clamp bounds
       clampOffset();
       updateCenter();
     } else {
-      // Level 2/3/4: snap to nearest disc and restore saved progress
       snapToNearest();
       progressRef.current = savedProgressRef.current;
       progress.start(savedProgressRef.current);
-      // Re-trigger player mode if was at level 4
-      if (savedProgressRef.current >= 1) {
-        enterPlayerMode(centerDiscIndex);
+      if (savedProgressRef.current >= 1 && activeDisc >= 0) {
+        enterPlayerMode(activeDisc);
       }
     }
   }, [
@@ -317,7 +327,7 @@ export function VinylGrid() {
     updateCenter,
     progress,
     enterPlayerMode,
-    centerDiscIndex,
+    activeDisc,
   ]);
 
   const handlePointerMove = useCallback(
@@ -332,6 +342,7 @@ export function VinylGrid() {
     [isHold, offsetX, offsetY, updateCenter],
   );
 
+  // ── Wheel handler ──────────────────────────────────────────────────────────
   const handleWheel = useCallback(
     (evt: React.WheelEvent) => {
       evt.preventDefault();
@@ -353,18 +364,13 @@ export function VinylGrid() {
       savedProgressRef.current = next;
       progress.start(next);
 
-      // Transition from level 1 → higher: snap to nearest disc at screen center
+      // Transition from level 1 → higher: center on active disc or nearest
       if (prev === 0 && next > 0) {
-        const nearest = findNearestDisc(
-          coords,
-          offsetRef.current[0],
-          offsetRef.current[1],
-        );
-        const [cx, cy] = coords[nearest];
-        offsetRef.current = [-cx, -cy];
-        offsetX.start(-cx);
-        offsetY.start(-cy);
-        setCenterDiscIndex(nearest);
+        if (activeDisc >= 0) {
+          panToDisc(activeDisc);
+        } else {
+          snapToNearest();
+        }
       }
 
       scheduleSnap();
@@ -374,12 +380,13 @@ export function VinylGrid() {
       playerMode,
       exitPlayerMode,
       scheduleSnap,
-      coords,
-      offsetX,
-      offsetY,
+      activeDisc,
+      panToDisc,
+      snapToNearest,
     ],
   );
 
+  // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
       className="relative w-full h-screen overflow-hidden touch-none select-none cursor-none"
@@ -407,8 +414,8 @@ export function VinylGrid() {
             index={idx}
             isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
-            isPlayingDisc={idx === playingDiscIndex}
-            onCenter={handleCenter}
+            isPlayingDisc={idx === activeDisc}
+            onCenter={handleDiscClick}
             onHover={setHoveredDiscIndex}
           />
         ))}
