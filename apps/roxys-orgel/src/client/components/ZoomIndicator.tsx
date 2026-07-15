@@ -14,31 +14,31 @@ interface ZoomIndicatorProps {
 export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
   const [value, setValue] = useState(0.66);
   const [visible, setVisible] = useState(false);
-  const hideTimerRef = useRef(0);
   const prevValueRef = useRef(0.66);
 
-  // Poll spring value via rAF
+  // Track spring: visible while moving, hide immediately when stopped
   useEffect(() => {
     let raf = 0;
+    let idleFrames = 0;
     const tick = () => {
       const v = progress.get();
-      if (Math.abs(v - prevValueRef.current) > 0.001) {
+      const delta = Math.abs(v - prevValueRef.current);
+      if (delta > 0.001) {
         setValue(v);
         setVisible(true);
-        clearTimeout(hideTimerRef.current);
-        hideTimerRef.current = window.setTimeout(() => {
-          setVisible(false);
-        }, 1200);
+        idleFrames = 0;
         prevValueRef.current = v;
+      } else if (idleFrames < 3) {
+        // Wait a few frames to confirm spring settled
+        idleFrames++;
+      } else if (visible) {
+        setVisible(false);
       }
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
-    return () => {
-      cancelAnimationFrame(raf);
-      clearTimeout(hideTimerRef.current);
-    };
-  }, [progress]);
+    return () => cancelAnimationFrame(raf);
+  }, [progress, visible]);
 
   // Opacity: base fade + level 3→4 fade
   // At progress 0.66→1.0: map to 1→0
