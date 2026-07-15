@@ -1,5 +1,6 @@
 "$schema" = "node_modules/wrangler/config-schema.json"
 
+account_id = "1766f35ec0dc9e97a6f153e46dbec6ba"
 name = "roxys-orgel"
 compatibility_date = "2025-06-02"
 main = "./src/main.tsx"
