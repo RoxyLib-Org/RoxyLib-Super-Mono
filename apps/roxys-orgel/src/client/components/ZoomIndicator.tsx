@@ -57,8 +57,8 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
   // Each 0.5 unit = one tick, each 1.0 = red tick
   // Total range 0-1 mapped to 0-4 in display
   const displayValue = 1 + value * 3; // 1.0 to 4.0
-  const TICK_HEIGHT = 8; // px per 0.1 unit
-  const RANGE = 2.0; // visible range in display units
+  const TICK_HEIGHT = 12; // px per 0.1 unit
+  const RANGE = 1.5; // visible range in display units
   const tickOffset = displayValue * TICK_HEIGHT * 10; // scroll position
 
   // Generate tick marks for the visible range
@@ -83,7 +83,7 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
     >
       <div
         className="relative flex items-center justify-center"
-        style={{ width: "80px", height: "60px" }}
+        style={{ width: "80px", height: "80px" }}
       >
         {/* Tick ruler — full width behind text */}
         <div
@@ -110,13 +110,13 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
                   top: `${tick.pos}px`,
                   left: "50%",
                   transform: "translateX(-50%)",
-                  height: tick.isFull ? "2px" : "1px",
-                  width: tick.isFull || tick.isHalf ? "100%" : "30%",
+                  height: tick.isFull ? "2px" : "1.5px",
+                  width: tick.isFull || tick.isHalf ? "100%" : "40%",
                   backgroundColor: tick.isFull
                     ? "rgba(239, 68, 68, 0.5)"
                     : tick.isHalf
                       ? "rgba(255, 255, 255, 0.3)"
-                      : "rgba(255, 255, 255, 0.15)",
+                      : "rgba(255, 255, 255, 0.3)",
                 }}
               />
             ))}
