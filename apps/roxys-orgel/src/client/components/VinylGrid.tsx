@@ -362,7 +362,7 @@ export function VinylGrid() {
       }
 
       const prev = progressRef.current;
-      const delta = evt.deltaY > 0 ? -0.04 : 0.04;
+      const delta = evt.deltaY > 0 ? -0.08 : 0.08;
       const next = Math.max(0, Math.min(1, prev + delta));
       progressRef.current = next;
       savedProgressRef.current = next;
