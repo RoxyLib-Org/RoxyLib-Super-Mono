@@ -33,31 +33,7 @@ export function ModeButtons({
       onPointerUp={(e) => e.stopPropagation()}
       onClick={(e) => e.stopPropagation()}
     >
-      {/* Player mode: ghost X button */}
-      <animated.button
-        type="button"
-        onClick={onClosePlayer}
-        aria-label="Close player"
-        className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
-        style={{
-          opacity: playerMode.to((pm) => pm),
-          pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
-        }}
-      >
-        <svg
-          width="32"
-          height="32"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          strokeLinecap="round"
-        >
-          <path d="M4 4l8 8M12 4l-8 8" />
-        </svg>
-      </animated.button>
-
-      {/* Level 2/3: minimize + maximize buttons (same position, overlaps X) */}
+      {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
         className="absolute top-0 left-0 flex items-center gap-4"
         style={{
@@ -110,6 +86,30 @@ export function ModeButtons({
           </svg>
         </button>
       </animated.div>
+
+      {/* Player mode: ghost X button — AFTER minimize so it stacks on top */}
+      <animated.button
+        type="button"
+        onClick={onClosePlayer}
+        aria-label="Close player"
+        className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
+        style={{
+          opacity: playerMode.to((pm) => pm),
+          pointerEvents: playerMode.to((pm) => (pm > 0.5 ? "auto" : "none")),
+        }}
+      >
+        <svg
+          width="32"
+          height="32"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        >
+          <path d="M4 4l8 8M12 4l-8 8" />
+        </svg>
+      </animated.button>
     </div>
   );
 }
