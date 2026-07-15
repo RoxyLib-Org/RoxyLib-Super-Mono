@@ -8,3 +8,8 @@ workers_dev = true
 
 [vars]
 UPSTREAM_URL = "http://localhost:3000"
+
+[[vpc_networks]]
+binding = "VPC"
+tunnel_id = "019f64e4-abce-7b13-b090-e980b313f5da"
+remote = true
