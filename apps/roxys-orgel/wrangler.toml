@@ -23,8 +23,3 @@ id = "07556907bfe245c9a28817ea61418367"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "rx-orgel"
-
-[[vpc_services]]
-binding = "VPC"
-service_id = "019f64e4-abce-7b13-b090-e980b313f5da"
-remote = true
