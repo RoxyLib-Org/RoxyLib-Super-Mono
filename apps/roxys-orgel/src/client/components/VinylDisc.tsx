@@ -104,7 +104,7 @@ export function VinylDisc({
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
     const SPACING_MIN = 0.3;
-    const SPACING_MAX = 1.5;
+    const SPACING_MAX = 2.0;
     // Compression: 1/(1 + k*sqrt(dist)) — sublinear, strong in mid-range, gentle at extremes
     const COMPRESS_K = 0.015;
     return [
@@ -251,14 +251,14 @@ export function VinylDisc({
           width: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
             // Steep gaussian: center = 1.4, drops off quickly
-            const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
+            const gaussian = 0.1 + 1.7 * Math.exp(-8 * t * t);
             const uniform = 0.28;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
           }),
           height: to([distanceFromCenter, progress, playerMode], (d, p) => {
             const t = min(d / maxVisibleDist, 1);
-            const gaussian = 0.15 + 1.25 * Math.exp(-8 * t * t);
+            const gaussian = 0.1 + 1.7 * Math.exp(-8 * t * t);
             const uniform = 0.28;
             const size = uniform + (gaussian - uniform) * p;
             return `${max(size, 0) * DISC_SIZE}px`;
