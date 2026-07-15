@@ -9,6 +9,13 @@ const ORIGINS = {
 const app = new Hono();
 
 app.all("*", async (c) => {
+  const host = new URL(c.req.url).hostname;
+
+  // Host-based routing — direct domain match
+  if (host === "pan.roxylib.com") return proxy(c, "pan");
+  if (host === "book.roxylib.com") return proxy(c, "book");
+
+  // workers.dev fallback: cookie-based
   const cookies = parseCookie(c.req.header("Cookie") || "");
   const service = cookies["isRoxyBook"] === "true" ? "book" : "pan";
   return proxy(c, service);
