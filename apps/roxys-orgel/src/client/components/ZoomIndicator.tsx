@@ -111,7 +111,7 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
                   left: "50%",
                   transform: "translateX(-50%)",
                   height: tick.isFull ? "2px" : "1px",
-                  width: tick.isFull ? "100%" : tick.isHalf ? "60%" : "30%",
+                  width: tick.isFull || tick.isHalf ? "100%" : "30%",
                   backgroundColor: tick.isFull
                     ? "rgba(239, 68, 68, 0.5)"
                     : tick.isHalf
