@@ -348,10 +348,11 @@ export function VinylGrid() {
       setIsHold(false);
 
       if (!isDraggingRef.current) {
-        // Click — find disc under pointer
-        const target = (evt.target as HTMLElement).closest("[data-vinyl-disc]");
-        if (target) {
-          const idx = Number(target.getAttribute("data-disc-index"));
+        // Click — use elementFromPoint since capture redirects target
+        const el = document.elementFromPoint(evt.clientX, evt.clientY);
+        const disc = el?.closest("[data-vinyl-disc]");
+        if (disc) {
+          const idx = Number(disc.getAttribute("data-disc-index"));
           if (!Number.isNaN(idx)) {
             handleDiscClick(idx);
           }
