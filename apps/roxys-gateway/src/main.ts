@@ -1,18 +1,45 @@
 import { Hono } from "hono";
 import type { Context } from "hono";
 
+interface Env {
+  ASSETS: R2Bucket;
+}
+
 const ORIGINS = {
   pan: "https://pan.roxylib.com",
   book: "https://book.roxylib.com",
 } as const;
 
-const app = new Hono();
+const MIME_TYPES: Record<string, string> = {
+  html: "text/html",
+  css: "text/css",
+  js: "application/javascript",
+  json: "application/json",
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+  avif: "image/avif",
+  svg: "image/svg+xml",
+  ico: "image/x-icon",
+  woff2: "font/woff2",
+  woff: "font/woff",
+  ttf: "font/ttf",
+  mp4: "video/mp4",
+  webm: "video/webm",
+  pdf: "application/pdf",
+  zip: "application/zip",
+};
+
+const app = new Hono<{ Bindings: Env }>();
 
 app.all("*", async (c) => {
   const host = new URL(c.req.url).hostname;
 
   if (host === "pan.roxylib.com") return proxy(c, "pan");
   if (host === "book.roxylib.com") return proxy(c, "book");
+  if (host === "assets.roxylib.com") return serveAssets(c);
 
   return c.html(
     `<!doctype html>
@@ -38,7 +65,30 @@ p{margin-top:.8rem;font-size:1.1rem;opacity:.8}
   );
 });
 
-async function proxy(c: Context, service: keyof typeof ORIGINS): Promise<Response> {
+async function serveAssets(c: Context<{ Bindings: Env }>): Promise<Response> {
+  const key = decodeURIComponent(new URL(c.req.url).pathname.slice(1));
+
+  if (!key) {
+    return c.text("assets.roxylib.com", 200);
+  }
+
+  const object = await c.env.ASSETS.get(key);
+  if (!object) {
+    return c.text("Not Found", 404);
+  }
+
+  const ext = key.split(".").pop()?.toLowerCase() || "";
+  const contentType = MIME_TYPES[ext] || "application/octet-stream";
+
+  const headers = new Headers();
+  headers.set("Content-Type", contentType);
+  headers.set("Cache-Control", "public, max-age=31536000, immutable");
+  headers.set("ETag", object.httpEtag);
+
+  return new Response(object.body, { headers });
+}
+
+async function proxy(c: Context<{ Bindings: Env }>, service: keyof typeof ORIGINS): Promise<Response> {
   const origin = ORIGINS[service];
   const reqUrl = new URL(c.req.url);
   const target = new URL(reqUrl.pathname + reqUrl.search, origin);
