@@ -122,6 +122,7 @@ export function VinylGrid() {
   const [playerMode, setPlayerMode] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
+  const [playingDiscIndex, setPlayingDiscIndex] = useState(-1); // Track which disc is playing
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
   const savedProgressRef = useRef(0.66);
@@ -207,21 +208,46 @@ export function VinylGrid() {
 
   const handleCenter = useCallback(
     (index: number) => {
-      if (index === centerDiscIndex) {
-        setIsPlaying((p) => !p);
+      const isLevel1 = progressRef.current === 0;
+
+      if (isLevel1) {
+        // Level 1: click any disc → start playing it, center it, jump to level 3
+        const [cx, cy] = coords[index];
+        offsetRef.current = [-cx, -cy];
+        offsetX.start(-cx);
+        offsetY.start(-cy);
+        setCenterDiscIndex(index);
+        setPlayingDiscIndex(index);
+        setIsPlaying(true);
+        progressRef.current = 0.66;
+        savedProgressRef.current = 0.66;
+        progress.start(0.66);
         return;
       }
+
+      if (index === centerDiscIndex) {
+        // Toggle play/pause on current center
+        setIsPlaying((p) => {
+          const next = !p;
+          setPlayingDiscIndex(next ? index : -1);
+          return next;
+        });
+        return;
+      }
+
+      // Switch to different disc
       const [cx, cy] = coords[index];
       offsetRef.current = [-cx, -cy];
       offsetX.start(-cx);
       offsetY.start(-cy);
       setCenterDiscIndex(index);
+      setPlayingDiscIndex(index);
       setIsPlaying(true);
       if (playerMode) {
         bgApi.start({ color: getVinylColor(index) });
       }
     },
-    [coords, offsetX, offsetY, centerDiscIndex, playerMode, bgApi],
+    [coords, offsetX, offsetY, centerDiscIndex, playerMode, bgApi, progress],
   );
 
   const handlePrev = useCallback(() => {
@@ -231,6 +257,7 @@ export function VinylGrid() {
     offsetX.start(-cx);
     offsetY.start(-cy);
     setCenterDiscIndex(prev);
+    setPlayingDiscIndex(prev);
     setIsPlaying(true);
     bgApi.start({ color: getVinylColor(prev) });
   }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
@@ -242,6 +269,7 @@ export function VinylGrid() {
     offsetX.start(-cx);
     offsetY.start(-cy);
     setCenterDiscIndex(next);
+    setPlayingDiscIndex(next);
     setIsPlaying(true);
     bgApi.start({ color: getVinylColor(next) });
   }, [centerDiscIndex, coords, offsetX, offsetY, bgApi]);
@@ -317,14 +345,37 @@ export function VinylGrid() {
         return;
       }
 
+      const prev = progressRef.current;
       const delta = evt.deltaY > 0 ? -0.04 : 0.04;
-      const next = Math.max(0, Math.min(1, progressRef.current + delta));
+      const next = Math.max(0, Math.min(1, prev + delta));
       progressRef.current = next;
       savedProgressRef.current = next;
       progress.start(next);
+
+      // Transition from level 1 → higher: auto-center on playing disc
+      if (prev === 0 && next > 0) {
+        const target =
+          playingDiscIndex >= 0 ? playingDiscIndex : centerDiscIndex;
+        const [cx, cy] = coords[target];
+        offsetRef.current = [-cx, -cy];
+        offsetX.start(-cx);
+        offsetY.start(-cy);
+        setCenterDiscIndex(target);
+      }
+
       scheduleSnap();
     },
-    [progress, playerMode, exitPlayerMode, scheduleSnap],
+    [
+      progress,
+      playerMode,
+      exitPlayerMode,
+      scheduleSnap,
+      playingDiscIndex,
+      centerDiscIndex,
+      coords,
+      offsetX,
+      offsetY,
+    ],
   );
 
   return (

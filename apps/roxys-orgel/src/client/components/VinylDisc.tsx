@@ -168,9 +168,9 @@ export function VinylDisc({
   const spinAccumRef = useRef(0);
   const spinRafRef = useRef(0);
 
-  // When no longer center disc: reset progress, spring back to 0
+  // When not spinning (stopped or not center): spring rotation back to 0
   useEffect(() => {
-    if (!isCenterDisc) {
+    if (!shouldSpin) {
       const current = spinAccumRef.current % 360;
       if (current > 0) {
         const target = current > 180 ? 360 : 0;
@@ -178,7 +178,7 @@ export function VinylDisc({
       }
       spinAccumRef.current = 0;
     }
-  }, [isCenterDisc, discRotateSpring]);
+  }, [shouldSpin, discRotateSpring]);
 
   // Spin when playing + center
   useEffect(() => {
