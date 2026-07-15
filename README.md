@@ -26,78 +26,50 @@
 RoxyLib-Super-Mono/
 ├── apps/
 │   ├── roxys-orgel/          # 主应用 (Hono + tRPC + TanStack Router SSR)
-│   │   ├── src/
-│   │   │   ├── main.tsx      # Worker 入口
-│   │   │   ├── server/trpc/  # tRPC router、context、procedures
-│   │   │   ├── server/apis/  # SSR fileRoute
-│   │   │   ├── client/       # React hooks、tRPC client
-│   │   │   ├── apps/         # TanStack Router 页面、样式
-│   │   │   └── shared/       # 类型定义
-│   │   ├── vite.config.ts
-│   │   └── wrangler.toml
-│   └── roxys-gateway/        # 转发代理 Worker (请求透传到本地)
-│       ├── src/main.ts
-│       └── wrangler.toml
+│   └── roxys-gateway/        # 转发代理 Worker
 ├── libs/
 │   ├── db/                   # Drizzle schema + D1 工厂
 │   └── utils/                # 共享工具
 ├── packages/
 │   └── ty-jk/                # Rust CLI (PTY 劫持 + 日志轮转)
 ├── plugins/                  # TypeScript fallback (x.ts, log.ts)
-├── drizzle/                  # D1 数据库迁移文件
-├── nx.json
-├── biome.json
-├── tsconfig.base.json
-└── drizzle.config.ts
+└── drizzle/                  # D1 数据库迁移文件
 ```
 
 ## 快速开始
-
-### 前置条件
-
-- Node.js 22+
-- pnpm 11+
-- Rust toolchain (用于构建 ty-jk)
-
-### 安装
 
 ```bash
 pnpm install
 RUSTC_WRAPPER='' cargo build --release -p ty-jk
 ```
 
-### 本地开发
+## 开发
 
 ```bash
 pnpm x roxys-orgel:dev
 pnpm x roxys-gateway:dev
 ```
 
-通过 Nx 单独启动某个项目的 dev server，ty-jk 通过 PTY 劫持终端输出并写入 `.agents/` 日志。
-
-### 构建
+## 构建
 
 ```bash
-pnpm build
+pnpm x roxys-orgel:build
+pnpm x roxys-gateway:build
 ```
 
-### Lint
+## 部署
 
 ```bash
-pnpm lint
+# 生产 (全量部署)
+pnpm x roxys-orgel:deploy
+pnpm x roxys-gateway:deploy
+
+# 非生产分支 (仅上传新版本，不切流量)
+pnpm x roxys-orgel:deploy:update
+pnpm x roxys-gateway:deploy:update
 ```
 
-### 部署
-
-```bash
-# 部署主应用
-pnpm deploy:orgel
-
-# 部署网关
-pnpm deploy:gateway
-```
-
-### 数据库迁移
+## 数据库迁移
 
 ```bash
 # 生成迁移
@@ -107,40 +79,23 @@ pnpm drizzle generate
 cd apps/roxys-orgel && npx wrangler d1 migrations apply roxys-orgel --remote
 ```
 
-## 命令体系
-
-所有命令通过 `ty-jk` 包裹执行，提供 PTY 终端劫持和自动日志轮转。
+## 命令参考
 
 | 命令 | 作用 |
 |------|------|
-| `pnpm x roxys-orgel:dev` | 启动 orgel dev server |
-| `pnpm x roxys-gateway:dev` | 启动 gateway dev server |
-| `pnpm x <project>:<target>` | 通过 Nx 运行任意 target |
-| `pnpm build` | nx 构建全部项目 |
+| `pnpm x <project>:<target>` | 通过 ty-jk + Nx 运行 (带 PTY 日志) |
+| `pnpm build` | 构建全部项目 |
 | `pnpm lint` | Biome 全量检查 |
 | `pnpm drizzle` | Drizzle Kit CLI |
-| `pnpm deploy:orgel` | 构建 + 部署 orgel Worker |
-| `pnpm deploy:gateway` | 构建 + 部署 gateway Worker |
 
-`pnpm x` 即 `./x.sh` — 有编译好的 ty-jk 二进制就用 Rust 版 (带 PTY)，否则 fallback 到 pnpm scripts。
+`pnpm x` 即 `./x.sh` — 有 ty-jk 二进制走 Rust PTY，否则 fallback 到 `pnpm run`。
 
 ## 环境变量
 
-复制 `.env.example` 到 `.env` 填入实际值。Workers secrets 通过 `wrangler secret put` 设置。
+复制 `.env.example` 到 `.env`。Workers secrets 通过 `wrangler secret put` 设置。
 
 | 变量 | 说明 |
 |------|------|
 | `CLOUDFLARE_ACCOUNT_ID` | Cloudflare Account ID |
 | `CLOUDFLARE_DATABASE_ID` | D1 数据库 ID |
 | `CLOUDFLARE_D1_TOKEN` | D1 HTTP API Token (drizzle-kit 远程访问) |
-
-## 配置文件
-
-| 文件 | 用途 |
-|------|------|
-| `apps/roxys-orgel/wrangler.toml` | 主 Worker 配置 (D1, KV) |
-| `apps/roxys-gateway/wrangler.toml` | 网关 Worker 配置 |
-| `drizzle.config.ts` | Drizzle ORM 配置 |
-| `tsconfig.base.json` | 全局 TypeScript 配置 (路径别名 `@lib/*`, `@/*`) |
-| `biome.json` | 代码风格 + Lint 规则 |
-| `nx.json` | Nx workspace + Vite plugin |
