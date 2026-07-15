@@ -27,7 +27,12 @@ export function ModeButtons({
   onClosePlayer,
 }: ModeButtonsProps) {
   return (
-    <div className="absolute top-6 left-6 z-50">
+    <div
+      className="absolute top-6 left-6 z-50"
+      onPointerDown={(e) => e.stopPropagation()}
+      onPointerUp={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
+    >
       {/* Player mode: ghost X button */}
       <animated.button
         type="button"
