@@ -13,3 +13,11 @@ enabled = true
 [observability.logs]
 enabled = true
 invocation_logs = true
+
+[[routes]]
+pattern = "pan.roxylib.com/*"
+zone_id = "9e79eceb9f768792ff24ce075c3d88a9"
+
+[[routes]]
+pattern = "book.roxylib.com/*"
+zone_id = "9e79eceb9f768792ff24ce075c3d88a9"

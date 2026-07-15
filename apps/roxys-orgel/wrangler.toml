@@ -27,3 +27,7 @@ id = "07556907bfe245c9a28817ea61418367"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "rx-orgel"
+
+[[routes]]
+pattern = "orgel.roxylib.com/*"
+zone_id = "9e79eceb9f768792ff24ce075c3d88a9"
