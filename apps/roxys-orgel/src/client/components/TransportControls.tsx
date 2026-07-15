@@ -52,7 +52,7 @@ export function TransportControls({
 
   return (
     <animated.div
-      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-3 pb-10"
+      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-2 pb-6 sm:gap-3 sm:pb-10"
       style={{
         opacity: visible.to((v) => v),
         transform: visible.to((v) => `translateY(${(1 - v) * 30}px)`),
@@ -60,7 +60,7 @@ export function TransportControls({
       }}
     >
       {/* Progress bar */}
-      <div className="w-80 max-w-[80vw] flex items-center gap-3">
+      <div className="w-64 sm:w-80 max-w-[85vw] flex items-center gap-2 sm:gap-3">
         <span className="text-white/60 text-xs font-mono w-10 text-right">
           {formatTime(elapsed)}
         </span>
@@ -76,7 +76,7 @@ export function TransportControls({
       </div>
 
       {/* Transport buttons */}
-      <div className="flex items-center gap-8">
+      <div className="flex items-center gap-5 sm:gap-8">
         <button
           type="button"
           onClick={onPrev}
@@ -91,7 +91,7 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPlayPause}
-          className="w-12 h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-pointer"
+          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-pointer"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? (

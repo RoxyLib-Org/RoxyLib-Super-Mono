@@ -1,5 +1,5 @@
 import { animated, useSpring, useSpringValue } from "@react-spring/web";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CustomCursor } from "./CustomCursor";
 import { TransportControls } from "./TransportControls";
 import {
@@ -120,6 +120,26 @@ function computeBounds(
 //    Used ONLY for size gaussian (distanceFromCenter). NOT used for playback.
 // ──────────────────────────────────────────────────────────────────────────────
 
+/** Scale the whole grid down on narrow screens */
+function useViewportScale(): number {
+  const [scale, setScale] = useState(() =>
+    typeof window !== "undefined" ? computeScale(window.innerWidth) : 1,
+  );
+  useEffect(() => {
+    const onResize = () => setScale(computeScale(window.innerWidth));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
+  return scale;
+}
+
+function computeScale(vw: number): number {
+  // Full size at 1024px+, scales down linearly to 0.5 at 320px
+  if (vw >= 1024) return 1;
+  if (vw <= 320) return 0.5;
+  return 0.5 + ((vw - 320) / (1024 - 320)) * 0.5;
+}
+
 export function VinylGrid() {
   const coords = useMemo(
     () => generateHexPositions(HEX_RADIUS, DISC_COUNT),
@@ -129,6 +149,7 @@ export function VinylGrid() {
     () => computeBounds(coords, HEX_RADIUS * 2),
     [coords],
   );
+  const viewportScale = useViewportScale();
 
   // ── State ──────────────────────────────────────────────────────────────────
   const [isHold, setIsHold] = useState(false);
@@ -504,7 +525,7 @@ export function VinylGrid() {
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
-      className="relative w-full h-screen overflow-hidden touch-none select-none cursor-none"
+      className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none"
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -521,7 +542,10 @@ export function VinylGrid() {
         style={{ backgroundColor: bgSpring.color }}
       />
 
-      <div className="relative w-full h-full">
+      <div
+        className="relative w-full h-full origin-center"
+        style={{ transform: `scale(${viewportScale})` }}
+      >
         {coords.map((coord, idx) => (
           <VinylDisc
             key={idx}

@@ -28,13 +28,28 @@ export function CustomCursor({
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const rafRef = useRef(0);
   const [mouseInPage, setMouseInPage] = useState(true);
+  const [isTouch, setIsTouch] = useState(false);
 
   useEffect(() => {
+    // Detect touch device — hide cursor entirely
+    const onTouch = () => setIsTouch(true);
+    const onMouse = () => setIsTouch(false);
+    window.addEventListener("touchstart", onTouch, { once: true });
+    window.addEventListener("mousemove", onMouse, { once: true });
+    // Also detect on subsequent switches
+    const onPointerDown = (e: PointerEvent) => {
+      setIsTouch(e.pointerType === "touch");
+    };
+    window.addEventListener("pointerdown", onPointerDown);
+
     const onLeave = () => setMouseInPage(false);
     const onEnter = () => setMouseInPage(true);
     document.addEventListener("mouseleave", onLeave);
     document.addEventListener("mouseenter", onEnter);
     return () => {
+      window.removeEventListener("touchstart", onTouch);
+      window.removeEventListener("mousemove", onMouse);
+      window.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("mouseenter", onEnter);
     };
@@ -48,7 +63,7 @@ export function CustomCursor({
   const shouldSpin = !showPause;
 
   // Size + text opacity spring
-  const visible = mouseInPage;
+  const visible = mouseInPage && !isTouch;
   const smallSize = compact ? 16 : SMALL_SIZE;
   const largeSize = compact ? 60 : LARGE_SIZE;
   const spring = useSpring({
