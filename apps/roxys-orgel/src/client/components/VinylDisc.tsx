@@ -103,7 +103,7 @@ export function VinylDisc({
   const [x, y] = useMemo(() => {
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
-    const SPACING_MIN = 0.42;
+    const SPACING_MIN = 0.3;
     const SPACING_MAX = 1.5;
     // Compression: 1/(1 + k*sqrt(dist)) — sublinear, strong in mid-range, gentle at extremes
     const COMPRESS_K = 0.015;
