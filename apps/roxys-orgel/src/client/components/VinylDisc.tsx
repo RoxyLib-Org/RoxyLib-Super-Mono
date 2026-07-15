@@ -94,20 +94,31 @@ export function VinylDisc({
   onCenter,
   onHover,
 }: VinylDiscProps) {
-  // Position: progress controls radial compression
-  // p=0 → no compression, p=1 → max compression (outer discs pulled in)
+  // Position: progress controls spacing and radial compression
+  // Spacing: p=0 → tight (0.7x), p=1 → wide (1.5x)
+  // Compression: p=0 → none, p=1 → outer discs pulled toward center
   const [x, y] = useMemo(() => {
     const rawX = offset[0].to((v) => v + coord[0]);
     const rawY = offset[1].to((v) => v + coord[1]);
     const COMPRESS_K = 0.0003;
+    const SPACING_MIN = 0.7;
+    const SPACING_MAX = 1.5;
     return [
       to([rawX, rawY, progress], (xv, yv, p) => {
-        const dist = sqrt(xv * xv + yv * yv);
-        return xv * max(0.4, 1 - COMPRESS_K * p * dist);
+        // Apply spacing
+        const spacing = SPACING_MIN + (SPACING_MAX - SPACING_MIN) * p;
+        const sx = xv * spacing;
+        const sy = yv * spacing;
+        // Apply compression
+        const dist = sqrt(sx * sx + sy * sy);
+        return sx * max(0.4, 1 - COMPRESS_K * p * dist);
       }),
       to([rawX, rawY, progress], (xv, yv, p) => {
-        const dist = sqrt(xv * xv + yv * yv);
-        return yv * max(0.4, 1 - COMPRESS_K * p * dist);
+        const spacing = SPACING_MIN + (SPACING_MAX - SPACING_MIN) * p;
+        const sx = xv * spacing;
+        const sy = yv * spacing;
+        const dist = sqrt(sx * sx + sy * sy);
+        return sy * max(0.4, 1 - COMPRESS_K * p * dist);
       }),
     ];
   }, [offset, coord, progress]);
@@ -230,31 +241,24 @@ export function VinylDisc({
         onMouseLeave={handleMouseLeave}
         className="rounded-full overflow-hidden flex items-center justify-center relative"
         style={{
-          // Size controlled by 3 axes of progress:
-          // 1. Variation: p=0 → all same size, p=1 → center big/edge small (gaussian)
-          // 2. Overall scale: p=0 → small (0.5x), p=1 → large (1.1x)
-          // 3. Player mode: center disc grows more
+          // Size: continuous function of distance and progress
+          // p=0: all uniform (0.55x compact), p=1: center=1x, far=0
+          // Smooth transition based on distance, no discrete jumps
           width: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
             const t = min(d / maxVisibleDist, 1);
+            // Gaussian: center big, edge small
             const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            const uniform = 1;
-            // Variation: lerp from uniform to gaussian
-            const variation = uniform * (1 - p) + gaussian * p;
-            // Overall scale: 0.5 at p=0, 1.1 at p=1
-            const overallScale = 0.5 + 0.6 * p;
-            let size = variation * overallScale;
-            if (isCenterDisc && pm > 0) size += pm * 0.15;
-            return `${max(size, 0.15) * DISC_SIZE}px`;
+            const uniform = 0.55;
+            // Lerp from uniform to gaussian based on progress
+            const size = uniform + (gaussian - uniform) * p;
+            return `${max(size, 0) * DISC_SIZE}px`;
           }),
           height: to([distanceFromCenter, progress, playerMode], (d, p, pm) => {
             const t = min(d / maxVisibleDist, 1);
             const gaussian = 0.25 + 1.15 * Math.exp(-5 * t * t);
-            const uniform = 1;
-            const variation = uniform * (1 - p) + gaussian * p;
-            const overallScale = 0.5 + 0.6 * p;
-            let size = variation * overallScale;
-            if (isCenterDisc && pm > 0) size += pm * 0.15;
-            return `${max(size, 0.15) * DISC_SIZE}px`;
+            const uniform = 0.55;
+            const size = uniform + (gaussian - uniform) * p;
+            return `${max(size, 0) * DISC_SIZE}px`;
           }),
           background: vinylBase,
           // Border: visible at low progress (compact mode), fades as progress increases
