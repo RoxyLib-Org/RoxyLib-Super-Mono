@@ -444,6 +444,63 @@ export function VinylGrid() {
     ],
   );
 
+  // ── Pinch zoom (touch) ─────────────────────────────────────────────────────
+  const pinchRef = useRef<{ startDist: number; startProgress: number } | null>(
+    null,
+  );
+
+  const handleTouchStart = useCallback((evt: React.TouchEvent) => {
+    if (evt.touches.length === 2) {
+      const dx = evt.touches[1].clientX - evt.touches[0].clientX;
+      const dy = evt.touches[1].clientY - evt.touches[0].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      pinchRef.current = {
+        startDist: dist,
+        startProgress: progressRef.current,
+      };
+    }
+  }, []);
+
+  const handleTouchMove = useCallback(
+    (evt: React.TouchEvent) => {
+      if (evt.touches.length !== 2 || !pinchRef.current) return;
+      evt.preventDefault();
+
+      const dx = evt.touches[1].clientX - evt.touches[0].clientX;
+      const dy = evt.touches[1].clientY - evt.touches[0].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const ratio = dist / pinchRef.current.startDist;
+      // Map pinch ratio to progress: spread = zoom in, pinch = zoom out
+      const newProgress = Math.max(
+        0,
+        Math.min(1, pinchRef.current.startProgress + (ratio - 1) * 0.5),
+      );
+
+      const prev = progressRef.current;
+      progressRef.current = newProgress;
+      savedProgressRef.current = newProgress;
+      progress.start(newProgress);
+
+      // Transition from level 1 → higher
+      if (prev === 0 && newProgress > 0) {
+        if (activeDisc >= 0) {
+          panToDisc(activeDisc);
+        } else {
+          const nearest = snapToNearest();
+          setActiveDisc(nearest);
+        }
+      }
+    },
+    [progress, activeDisc, panToDisc, snapToNearest],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (pinchRef.current) {
+      pinchRef.current = null;
+      scheduleSnap();
+    }
+  }, [scheduleSnap]);
+
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
     <div
@@ -453,6 +510,9 @@ export function VinylGrid() {
       onPointerUp={handlePointerUp}
       onLostPointerCapture={handlePointerUp}
       onWheel={handleWheel}
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
     >
       <LiquidGlassFilter />
 
