@@ -18,6 +18,6 @@ invocation_logs = true
 UPSTREAM_URL = "http://localhost:3000"
 
 [[vpc_services]]
-binding = "VPC"
-service_id = "019f64e4-abce-7b13-b090-e980b313f5da"
+binding = "VPC_PAN"
+service_id = "019f652a-973f-73d0-93a0-cbe544dde600"
 remote = true
