@@ -124,8 +124,9 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
         </div>
 
         {/* Zoom number — on top */}
-        <div className="relative text-white/90 text-sm font-mono tracking-wider tabular-nums">
-          x{displayZoom}
+        <div className="relative flex items-baseline font-mono tracking-wider tabular-nums text-white/90">
+          <span className="text-xs">×</span>
+          <span className="text-lg">{displayZoom}</span>
         </div>
       </div>
     </animated.div>
