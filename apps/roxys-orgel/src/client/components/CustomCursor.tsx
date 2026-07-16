@@ -182,6 +182,7 @@ export function CustomCursor({
   const [pos, setPos] = useState({ x: 0, y: 0 });
   const rafRef = useRef(0);
   const [mouseInPage, setMouseInPage] = useState(true);
+  const mouseInPageRef = useRef(true);
   const [isTouch, setIsTouch] = useState(false);
   const [snapEl, setSnapEl] = useState<HTMLElement | null>(null);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 640);
@@ -194,10 +195,15 @@ export function CustomCursor({
     return () => mq.removeEventListener("change", onChange);
   }, []);
 
-  // ── Mouse tracking ────────────────────────────────────────────────────────
+  // ── Mouse tracking + page visibility ────────────────────────────────────
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
       posRef.current = { x: e.clientX, y: e.clientY };
+      // Any mousemove means cursor is in page
+      if (!mouseInPageRef.current) {
+        mouseInPageRef.current = true;
+        setMouseInPage(true);
+      }
       if (!rafRef.current) {
         rafRef.current = requestAnimationFrame(() => {
           setPos(posRef.current);
@@ -205,14 +211,38 @@ export function CustomCursor({
         });
       }
     };
+    // Use mouseleave on documentElement (not document) - more reliable
+    const onLeave = (e: MouseEvent) => {
+      // Only hide if mouse truly left the viewport bounds
+      const { clientX: x, clientY: y } = e;
+      if (
+        x <= 0 ||
+        y <= 0 ||
+        x >= window.innerWidth ||
+        y >= window.innerHeight
+      ) {
+        mouseInPageRef.current = false;
+        setMouseInPage(false);
+      }
+    };
+    const onVisChange = () => {
+      if (document.hidden) {
+        mouseInPageRef.current = false;
+        setMouseInPage(false);
+      }
+    };
     window.addEventListener("mousemove", onMove);
+    document.documentElement.addEventListener("mouseleave", onLeave);
+    document.addEventListener("visibilitychange", onVisChange);
     return () => {
       window.removeEventListener("mousemove", onMove);
+      document.documentElement.removeEventListener("mouseleave", onLeave);
+      document.removeEventListener("visibilitychange", onVisChange);
       cancelAnimationFrame(rafRef.current);
     };
   }, []);
 
-  // ── Touch / visibility detection ──────────────────────────────────────────
+  // ── Touch detection ──────────────────────────────────────────────────────
   useEffect(() => {
     const onTouch = () => setIsTouch(true);
     const onMouse = () => setIsTouch(false);
@@ -222,16 +252,10 @@ export function CustomCursor({
       setIsTouch(e.pointerType === "touch");
     };
     window.addEventListener("pointerdown", onPointerDown);
-    const onLeave = () => setMouseInPage(false);
-    const onEnter = () => setMouseInPage(true);
-    document.addEventListener("mouseleave", onLeave);
-    document.addEventListener("mouseenter", onEnter);
     return () => {
       window.removeEventListener("touchstart", onTouch);
       window.removeEventListener("mousemove", onMouse);
       window.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("mouseleave", onLeave);
-      document.removeEventListener("mouseenter", onEnter);
     };
   }, []);
 
@@ -305,25 +329,6 @@ export function CustomCursor({
     snapEl,
     scrubPos,
   });
-
-  // ── Debug: log only on key state changes ────────────────────────────────
-  const prevDebugRef = useRef("");
-  const debugKey = `${visible}|${mode.kind}|${mode.size}|${mode.face}|${mode.icon}|${mouseInPage}|${isTouch}`;
-  if (debugKey !== prevDebugRef.current) {
-    prevDebugRef.current = debugKey;
-    console.log("[Cursor] state change:", {
-      visible,
-      mouseInPage,
-      isTouch,
-      mode: mode.kind,
-      size: mode.size,
-      face: mode.face,
-      icon: mode.icon,
-      pos,
-      snapEl: snapEl?.tagName ?? null,
-      snapAttr: snapEl?.dataset.cursorSnap ?? null,
-    });
-  }
 
   // ── Springs ───────────────────────────────────────────────────────────────
   const isSnapped = mode.kind === "snap";
