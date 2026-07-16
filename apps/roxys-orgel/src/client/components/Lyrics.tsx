@@ -119,18 +119,6 @@ export function Lyrics({
         }),
       }}
     >
-      {/* Gradient masks on all four edges */}
-      <div className="absolute inset-0 pointer-events-none z-10">
-        {/* Top fade */}
-        <div className="absolute top-0 left-0 right-0 h-8 bg-gradient-to-b from-black/80 to-transparent" />
-        {/* Bottom fade */}
-        <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/80 to-transparent" />
-        {/* Left fade */}
-        <div className="absolute top-0 bottom-0 left-0 w-6 bg-gradient-to-r from-black/80 to-transparent" />
-        {/* Right fade */}
-        <div className="absolute top-0 bottom-0 right-0 w-6 bg-gradient-to-l from-black/80 to-transparent" />
-      </div>
-
       {/* Scrollable lyrics container */}
       <div
         ref={containerRef}

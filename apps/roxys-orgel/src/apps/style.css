@@ -63,17 +63,6 @@
   animation: aurora 60s linear infinite;
 }
 
-/* Lyrics container — vertical fade masks */
-.lyrics-mask {
-  mask-image: linear-gradient(
-    to bottom,
-    transparent 0%,
-    black 20%,
-    black 80%,
-    transparent 100%
-  );
-}
-
 /* Active lyric line glow */
 .lyric-active {
   text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
