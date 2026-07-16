@@ -75,9 +75,9 @@ export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
 
   return (
     <animated.div
-      className="absolute left-1/2 -translate-x-1/2 pointer-events-none"
+      className="absolute left-1/2 -translate-x-1/2 pointer-events-none scale-75 sm:scale-100"
       style={{
-        bottom: "15%",
+        bottom: "10%",
         opacity: spring.opacity,
       }}
     >

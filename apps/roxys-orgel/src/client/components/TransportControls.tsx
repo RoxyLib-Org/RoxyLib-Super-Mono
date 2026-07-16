@@ -52,7 +52,7 @@ export function TransportControls({
 
   return (
     <animated.div
-      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-2 pb-6 sm:gap-3 sm:pb-10"
+      className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-1.5 pb-4 sm:gap-3 sm:pb-10"
       style={{
         opacity: visible.to((v) => v),
         transform: visible.to((v) => `translateY(${(1 - v) * 30}px)`),
@@ -60,7 +60,7 @@ export function TransportControls({
       }}
     >
       {/* Progress bar */}
-      <div className="w-64 sm:w-80 max-w-[85vw] flex items-center gap-2 sm:gap-3">
+      <div className="w-48 sm:w-80 max-w-[85vw] flex items-center gap-1.5 sm:gap-3">
         <span className="text-white/60 text-xs font-mono w-10 text-right">
           {formatTime(elapsed)}
         </span>
@@ -76,14 +76,14 @@ export function TransportControls({
       </div>
 
       {/* Transport buttons */}
-      <div className="flex items-center gap-5 sm:gap-8">
+      <div className="flex items-center gap-3 sm:gap-8">
         <button
           type="button"
           onClick={onPrev}
           className="text-white/70 hover:text-white transition-colors cursor-pointer"
           aria-label="Previous track"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="18" height="18" className="sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" />
           </svg>
         </button>
@@ -91,15 +91,15 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPlayPause}
-          className="w-10 h-10 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-pointer"
+          className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-pointer"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="14" height="14" className="sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
             </svg>
           ) : (
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+            <svg width="14" height="14" className="sm:w-5 sm:h-5" viewBox="0 0 24 24" fill="currentColor">
               <path d="M8 5v14l11-7z" />
             </svg>
           )}
@@ -111,7 +111,7 @@ export function TransportControls({
           className="text-white/70 hover:text-white transition-colors cursor-pointer"
           aria-label="Next track"
         >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+          <svg width="18" height="18" className="sm:w-6 sm:h-6" viewBox="0 0 24 24" fill="currentColor">
             <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
           </svg>
         </button>

@@ -30,10 +30,10 @@ export function ModeButtons({
   onClosePlayer,
 }: ModeButtonsProps) {
   return (
-    <div className="absolute top-6 left-6 z-50 pointer-events-none">
+    <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-50 pointer-events-none">
       {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
-        className="absolute top-0 left-0 flex items-center gap-4"
+        className="absolute top-0 left-0 flex items-center gap-2 sm:gap-4"
         style={{
           opacity: to([progress, playerMode], (p, pm) =>
             Math.min(Math.min(p, 1 - pm) * 3, 1),
@@ -46,11 +46,12 @@ export function ModeButtons({
           type="button"
           onClick={() => { console.log("[DEBUG] ModeButtons: minimize button clicked"); onMinimize(); }}
           aria-label="Minimize"
-          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="28"
-            height="28"
+            width="16"
+            height="16"
+            className="sm:w-7 sm:h-7"
             viewBox="0 0 16 16"
             fill="none"
             stroke="currentColor"
@@ -66,11 +67,12 @@ export function ModeButtons({
           type="button"
           onClick={() => { console.log("[DEBUG] ModeButtons: maximize button clicked"); onMaximize(); }}
           aria-label="Maximize"
-          className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
           <svg
-            width="24"
-            height="24"
+            width="14"
+            height="14"
+            className="sm:w-6 sm:h-6"
             viewBox="0 0 14 14"
             fill="none"
             stroke="currentColor"
@@ -88,15 +90,16 @@ export function ModeButtons({
         type="button"
         onClick={() => { console.log("[DEBUG] ModeButtons: X (closePlayer) button clicked"); onClosePlayer(); }}
         aria-label="Close player"
-        className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
+        className="absolute top-0 left-0 w-10 h-10 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{
           opacity: playerMode.to((pm) => pm),
           pointerEvents: isPlayerMode ? "auto" : "none",
         }}
       >
         <svg
-          width="32"
-          height="32"
+          width="20"
+          height="20"
+          className="sm:w-8 sm:h-8"
           viewBox="0 0 16 16"
           fill="none"
           stroke="currentColor"

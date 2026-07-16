@@ -136,10 +136,10 @@ function useViewportScale(): number {
 }
 
 function computeScale(vw: number): number {
-  // Full size at 1024px+, scales down linearly to 0.5 at 320px
+  // Full size at 1024px+, scales down linearly to 0.25 at 320px
   if (vw >= 1024) return 1;
-  if (vw <= 320) return 0.5;
-  return 0.5 + ((vw - 320) / (1024 - 320)) * 0.5;
+  if (vw <= 320) return 0.25;
+  return 0.25 + ((vw - 320) / (1024 - 320)) * 0.75;
 }
 
 export function VinylGrid() {
@@ -389,14 +389,14 @@ export function VinylGrid() {
       }
 
       if (isDraggingRef.current) {
-        offsetRef.current[0] += evt.movementX;
-        offsetRef.current[1] += evt.movementY;
+        offsetRef.current[0] += evt.movementX / viewportScale;
+        offsetRef.current[1] += evt.movementY / viewportScale;
         offsetX.start(offsetRef.current[0]);
         offsetY.start(offsetRef.current[1]);
         updateCenter();
       }
     },
-    [isHold, offsetX, offsetY, updateCenter, progress, playerMode, playerSpring, bgApi],
+    [isHold, offsetX, offsetY, updateCenter, progress, playerMode, playerSpring, bgApi, viewportScale],
   );
 
   const handleMouseUp = useCallback(
@@ -594,8 +594,8 @@ export function VinylGrid() {
         const prevX = touchStartRef.current.x;
         const prevY = touchStartRef.current.y;
         touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-        offsetRef.current[0] += touch.clientX - prevX;
-        offsetRef.current[1] += touch.clientY - prevY;
+        offsetRef.current[0] += (touch.clientX - prevX) / viewportScale;
+        offsetRef.current[1] += (touch.clientY - prevY) / viewportScale;
         offsetX.start(offsetRef.current[0]);
         offsetY.start(offsetRef.current[1]);
         updateCenter();
@@ -609,6 +609,7 @@ export function VinylGrid() {
       offsetX,
       offsetY,
       updateCenter,
+      viewportScale,
     ],
   );
 
