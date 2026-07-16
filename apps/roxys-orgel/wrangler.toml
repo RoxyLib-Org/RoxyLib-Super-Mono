@@ -2,7 +2,7 @@
 
 account_id = "1766f35ec0dc9e97a6f153e46dbec6ba"
 name = "roxys-orgel"
-compatibility_date = "2025-06-02"
+compatibility_date = "2026-07-16"
 main = "./src/main.tsx"
 compatibility_flags = ["nodejs_compat_v2"]
 workers_dev = true
@@ -18,7 +18,7 @@ invocation_logs = true
 binding = "DB"
 database_name = "roxys-orgel"
 database_id = "7997e9d1-29cd-4746-9778-5c7a9c919077"
-migrations_dir = "../../drizzle"
+migrations_dir = "./drizzle"
 
 [[kv_namespaces]]
 binding = "KV"
