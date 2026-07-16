@@ -1,11 +1,5 @@
-import {
-  animated,
-  type SpringValue,
-  to,
-  useSpring,
-  useSpringValue,
-} from "@react-spring/web";
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { animated, type SpringValue, to, useSpring } from "@react-spring/web";
+import { useCallback, useMemo, useRef } from "react";
 
 const { sqrt, min, max, pow } = Math;
 
@@ -66,27 +60,33 @@ interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
   progress: SpringValue<number>;
-  playerMode: SpringValue<number>;
   index: number;
-  isPlaying: boolean;
+  /** Parent-owned elapsed time spring (seconds). Rotation derived from this. */
+  elapsed: SpringValue<number>;
   isCenterDisc: boolean;
   isPlayingDisc: boolean;
   onHover: (index: number) => void;
 }
 
-const DISC_ROTATION_PERIOD = 8000;
+/** One full disc rotation every 8 seconds of playback */
+const DISC_ROTATION_PERIOD = 8;
 
 export function VinylDisc({
   coord,
   offset,
   progress,
-  playerMode,
   index,
-  isPlaying,
+  elapsed,
   isCenterDisc,
   isPlayingDisc,
   onHover,
 }: VinylDiscProps) {
+  // Derive player mode visibility: progress 0.83→1 maps to 0→1
+  const playerMode = useMemo(
+    () => progress.to((p) => Math.min(1, Math.max(0, (p - 0.83) / 0.17))),
+    [progress],
+  );
+
   // Position: progress controls spacing and radial compression
   // Spacing: p=0 → tight (0.7x), p=1 → wide (1.5x)
   // Compression: p=0 → none, p=1 → outer discs pulled toward center
@@ -151,47 +151,6 @@ export function VinylDisc({
   const handleMouseLeave = useCallback(() => {
     tiltApi.start({ rx: 0, ry: 0 });
   }, [tiltApi]);
-
-  // Disc rotation — spring-driven for smooth return to 0
-  const shouldSpin = isPlaying && isPlayingDisc;
-  const discRotateSpring = useSpringValue(0, {
-    config: { mass: 1, tension: 120, friction: 20 },
-  });
-  const spinStartRef = useRef(0);
-  const spinAccumRef = useRef(0);
-  const spinRafRef = useRef(0);
-
-  // When not spinning (stopped or not center): spring rotation back to 0
-  useEffect(() => {
-    if (!shouldSpin) {
-      const current = spinAccumRef.current % 360;
-      if (current > 0) {
-        const target = current > 180 ? 360 : 0;
-        discRotateSpring.start(target);
-      }
-      spinAccumRef.current = 0;
-    }
-  }, [shouldSpin, discRotateSpring]);
-
-  // Spin when playing + center
-  useEffect(() => {
-    if (shouldSpin) {
-      spinStartRef.current = performance.now();
-      const tick = () => {
-        const elapsed = performance.now() - spinStartRef.current;
-        const deg =
-          spinAccumRef.current + (elapsed / DISC_ROTATION_PERIOD) * 360;
-        discRotateSpring.set(deg % 360);
-        spinRafRef.current = requestAnimationFrame(tick);
-      };
-      spinRafRef.current = requestAnimationFrame(tick);
-      return () => {
-        const elapsed = performance.now() - spinStartRef.current;
-        spinAccumRef.current += (elapsed / DISC_ROTATION_PERIOD) * 360;
-        cancelAnimationFrame(spinRafRef.current);
-      };
-    }
-  }, [shouldSpin, discRotateSpring]);
 
   return (
     <animated.div
@@ -272,12 +231,16 @@ export function VinylDisc({
           style={{
             width: DISC_SIZE,
             height: DISC_SIZE,
-            transform: to([discRotateSpring, progress], (r, p) => {
+            transform: to([elapsed, progress], (e, p) => {
+              // Rotation: only the playing disc rotates, derived from elapsed time
+              const rotation = isPlayingDisc
+                ? (e / DISC_ROTATION_PERIOD) * 360
+                : 0;
               // p=0 (level 1): scale down to fit container so cover is fully visible
               // p>=0.33 (level 2+): scale=1, natural clipping
               const contentScale =
                 p < 0.33 ? 0.28 + (1 - 0.28) * (p / 0.33) : 1;
-              return `rotate(${r}deg) scale(${contentScale})`;
+              return `rotate(${rotation}deg) scale(${contentScale})`;
             }),
           }}
         >

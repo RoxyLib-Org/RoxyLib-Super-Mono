@@ -40,7 +40,9 @@
   inset: -10px;
   background-image: var(--dark-gradient), var(--aurora);
   background-size: 300%, 200%;
-  background-position: 50% 50%, 50% 50%;
+  background-position:
+    50% 50%,
+    50% 50%;
   opacity: 0.5;
   filter: blur(10px);
   will-change: transform;
@@ -59,4 +61,20 @@
   background-attachment: fixed;
   mix-blend-mode: difference;
   animation: aurora 60s linear infinite;
+}
+
+/* Lyrics container — vertical fade masks */
+.lyrics-mask {
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0%,
+    black 20%,
+    black 80%,
+    transparent 100%
+  );
+}
+
+/* Active lyric line glow */
+.lyric-active {
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
 }

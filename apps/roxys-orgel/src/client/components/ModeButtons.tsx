@@ -1,12 +1,8 @@
 import { animated, type SpringValue, to } from "@react-spring/web";
 
 interface ModeButtonsProps {
-  /** 0-1 zoom progress spring */
+  /** 0-1 zoom progress spring (single source of truth) */
   progress: SpringValue<number>;
-  /** 0-1 player mode spring */
-  playerMode: SpringValue<number>;
-  /** Discrete boolean – true when in player mode */
-  isPlayerMode: boolean;
   /** Go to level 1 (browse) */
   onMinimize: () => void;
   /** Go to level 4 (player controls) */
@@ -17,34 +13,40 @@ interface ModeButtonsProps {
 
 /**
  * Top-left mode buttons:
- * - Player mode (level 4): ghost X to close → level 1
- * - Level 2/3: minimize (→1) + maximize (→4) circular white buttons
- * - Level 1: hidden
+ * - Player mode (progress ≈ 1): ghost X to close → level 1
+ * - Level 2/3 (progress 0.17–0.83): minimize (→1) + maximize (→4)
+ * - Level 1 (progress ≈ 0): hidden
  */
 export function ModeButtons({
   progress,
-  playerMode,
-  isPlayerMode,
   onMinimize,
   onMaximize,
   onClosePlayer,
 }: ModeButtonsProps) {
+  // Derive player mode interpolation: 0.83→1 maps to 0→1
+  const playerVis = progress.to((p) =>
+    Math.min(1, Math.max(0, (p - 0.83) / 0.17)),
+  );
+
   return (
     <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-50 pointer-events-none">
       {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
         className="absolute top-0 left-0 flex items-center gap-2 sm:gap-4"
         style={{
-          opacity: to([progress, playerMode], (p, pm) =>
+          // Visible when progress > 0 AND NOT in player mode
+          opacity: to([progress, playerVis], (p, pm) =>
             Math.min(Math.min(p, 1 - pm) * 3, 1),
           ),
-          pointerEvents: isPlayerMode ? "none" : "auto",
+          pointerEvents: progress.to((p) =>
+            p > 0.1 && p < 0.9 ? "auto" : "none",
+          ),
         }}
       >
         {/* Minimize → level 1 */}
         <button
           type="button"
-          onClick={() => { console.log("[DEBUG] ModeButtons: minimize button clicked"); onMinimize(); }}
+          onClick={onMinimize}
           aria-label="Minimize"
           className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -65,7 +67,7 @@ export function ModeButtons({
         {/* Maximize → level 4 (player) */}
         <button
           type="button"
-          onClick={() => { console.log("[DEBUG] ModeButtons: maximize button clicked"); onMaximize(); }}
+          onClick={onMaximize}
           aria-label="Maximize"
           className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -88,12 +90,12 @@ export function ModeButtons({
       {/* Player mode: ghost X button — AFTER minimize so it stacks on top */}
       <animated.button
         type="button"
-        onClick={() => { console.log("[DEBUG] ModeButtons: X (closePlayer) button clicked"); onClosePlayer(); }}
+        onClick={onClosePlayer}
         aria-label="Close player"
         className="absolute top-0 left-0 w-10 h-10 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{
-          opacity: playerMode.to((pm) => pm),
-          pointerEvents: isPlayerMode ? "auto" : "none",
+          opacity: playerVis,
+          pointerEvents: progress.to((p) => (p > 0.9 ? "auto" : "none")),
         }}
       >
         <svg
