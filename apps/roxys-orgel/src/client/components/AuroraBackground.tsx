@@ -1,23 +1,30 @@
 import { animated, type SpringValue } from "@react-spring/web";
 
 interface AuroraBackgroundProps {
-  /** 0→1 spring controlling visibility (player mode) */
+  /** 0→1 spring: player mode visibility */
   visible: SpringValue<number>;
+  /** Whether audio is currently playing */
+  isPlaying: boolean;
   /** Animated color string from the disc palette */
   color: SpringValue<string>;
 }
 
 /**
- * Aceternity-style aurora background using repeating-linear-gradient stripes,
- * blur, invert filter, and ::after mix-blend-difference.
- * Adapted for dark-only context with dynamic disc color influence.
+ * Aceternity-style aurora background.
+ * Visible only when in player mode (visible=1) AND playing.
+ * Uses CSS transition for the isPlaying toggle fade.
  */
-export function AuroraBackground({ visible, color }: AuroraBackgroundProps) {
+export function AuroraBackground({
+  visible,
+  isPlaying,
+  color,
+}: AuroraBackgroundProps) {
   return (
     <animated.div
       className="absolute inset-0 overflow-hidden"
       style={{
-        opacity: visible.to((v) => v),
+        opacity: visible.to((v) => v * (isPlaying ? 1 : 0)),
+        transition: "opacity 0.4s ease",
         pointerEvents: "none",
       }}
     >
