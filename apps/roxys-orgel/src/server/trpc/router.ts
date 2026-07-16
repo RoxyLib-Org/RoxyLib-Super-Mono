@@ -1,12 +1,12 @@
-import { z } from "zod";
-import { publicProcedure, router } from "./trpc";
+import { router } from "./trpc";
+import { songRouter } from "./routers/song";
+import { albumRouter } from "./routers/album";
+import { artistRouter } from "./routers/artist";
 
 export const appRouter = router({
-  hello: publicProcedure
-    .input(z.object({ name: z.string().optional() }))
-    .query(({ input }) => {
-      return { greeting: `Hello, ${input.name ?? "world"}!` };
-    }),
+  song: songRouter,
+  album: albumRouter,
+  artist: artistRouter,
 });
 
 export type AppRouter = typeof appRouter;
