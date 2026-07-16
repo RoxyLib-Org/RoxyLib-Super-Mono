@@ -306,14 +306,13 @@ export function VinylGrid() {
     [progress, bgApi],
   );
 
-  /** Exit player mode: progress → 0.66, pause, reset bg. */
+  /** Exit player mode: progress → 0.66, reset bg. Playback continues. */
   const exitPlayerMode = useCallback(() => {
-    pause();
     progressRef.current = 0.66;
     savedProgressRef.current = 0.66;
     progress.start(0.66);
     bgApi.start({ color: "rgb(0,0,0)" });
-  }, [progress, bgApi, pause]);
+  }, [progress, bgApi]);
 
   const handleMinimize = useCallback(() => {
     progressRef.current = 0;
