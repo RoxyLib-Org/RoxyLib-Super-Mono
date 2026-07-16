@@ -119,11 +119,10 @@ export function Lyrics({
         }),
       }}
     >
-      {/* Scrollable lyrics container */}
+      {/* Scrollable lyrics container - masked with gradient fade on all edges */}
       <div
         ref={containerRef}
-        className="h-full overflow-hidden px-8 py-6"
-        style={{ scrollBehavior: "smooth" }}
+        className="h-full overflow-hidden px-8 py-6 lyrics-fade-mask"
       >
         {/* Spacer to allow first line to be centered */}
         <div className="h-[60px] sm:h-[75px]" />

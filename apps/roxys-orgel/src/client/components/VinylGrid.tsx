@@ -762,9 +762,8 @@ export function VinylGrid() {
             offset={[offsetX, offsetY]}
             progress={progress}
             index={idx}
-            elapsed={elapsedSpring}
             isCenterDisc={idx === centerDiscIndex}
-            isPlayingDisc={idx === activeDisc}
+            isPlayingDisc={idx === activeDisc && isPlaying}
             onHover={setHoveredDiscIndex}
           />
         ))}

@@ -1,5 +1,11 @@
-import { animated, type SpringValue, to, useSpring } from "@react-spring/web";
-import { useCallback, useMemo, useRef } from "react";
+import {
+  animated,
+  type SpringValue,
+  to,
+  useSpring,
+  useSpringValue,
+} from "@react-spring/web";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 
 const { sqrt, min, max, pow } = Math;
 
@@ -61,8 +67,6 @@ interface VinylDiscProps {
   offset: [SpringValue<number>, SpringValue<number>];
   progress: SpringValue<number>;
   index: number;
-  /** Parent-owned elapsed time spring (seconds). Rotation derived from this. */
-  elapsed: SpringValue<number>;
   isCenterDisc: boolean;
   isPlayingDisc: boolean;
   onHover: (index: number) => void;
@@ -76,11 +80,41 @@ export function VinylDisc({
   offset,
   progress,
   index,
-  elapsed,
   isCenterDisc,
   isPlayingDisc,
   onHover,
 }: VinylDiscProps) {
+  // ── Self-contained rotation ─────────────────────────────────────────────
+  // Each disc owns its rotation. When playing: RAF advances rotation spring.
+  // When switched away: spring smoothly decelerates to 0.
+  const rotationSpring = useSpringValue(0, {
+    config: { mass: 0.8, tension: 120, friction: 20 },
+  });
+  const rotationRef = useRef(0);
+  const rafRef = useRef(0);
+  const lastTickRef = useRef(0);
+
+  useEffect(() => {
+    if (isPlayingDisc) {
+      // Start from 0 each time this disc becomes active
+      rotationRef.current = 0;
+      rotationSpring.set(0);
+      lastTickRef.current = performance.now();
+      const tick = () => {
+        const now = performance.now();
+        const dt = (now - lastTickRef.current) / 1000;
+        lastTickRef.current = now;
+        rotationRef.current += (dt / DISC_ROTATION_PERIOD) * 360;
+        rotationSpring.set(rotationRef.current);
+        rafRef.current = requestAnimationFrame(tick);
+      };
+      rafRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(rafRef.current);
+    }
+    // Not playing → smoothly animate to 0
+    rotationSpring.start(0);
+  }, [isPlayingDisc, rotationSpring]);
+
   // Derive player mode visibility: progress 0.83→1 maps to 0→1
   const playerMode = useMemo(
     () => progress.to((p) => Math.min(1, Math.max(0, (p - 0.83) / 0.17))),
@@ -231,69 +265,71 @@ export function VinylDisc({
           style={{
             width: DISC_SIZE,
             height: DISC_SIZE,
-            transform: to([elapsed, progress], (e, p) => {
-              // Rotation: only the playing disc rotates, derived from elapsed time
-              const rotation = isPlayingDisc
-                ? (e / DISC_ROTATION_PERIOD) * 360
-                : 0;
-              // p=0 (level 1): scale down to fit container so cover is fully visible
-              // p>=0.33 (level 2+): scale=1, natural clipping
+            transform: progress.to((p) => {
               const contentScale =
                 p < 0.33 ? 0.28 + (1 - 0.28) * (p / 0.33) : 1;
-              return `rotate(${rotation}deg) scale(${contentScale})`;
+              return `scale(${contentScale})`;
             }),
           }}
         >
-          {/* Vinyl grooves — visible only when progress > 0.3 */}
+          {/* Rotation wrapper — driven by per-disc RAF, always ticking */}
           <animated.div
-            className="absolute inset-0 rounded-full"
+            className="w-full h-full rounded-full"
             style={{
-              background: `repeating-radial-gradient(
+              transform: rotationSpring.to((rot) => `rotate(${rot}deg)`),
+            }}
+          >
+            {/* Vinyl grooves — visible only when progress > 0.3 */}
+            <animated.div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: `repeating-radial-gradient(
                 circle at center,
                 ${vinylBase} 0px,
                 ${vinylDark} 1.5px,
                 ${vinylBase} 3px
               )`,
-              opacity: progress.to((p) => max(0, (p - 0.3) / 0.7) * 0.85),
-            }}
-          />
+                opacity: progress.to((p) => max(0, (p - 0.3) / 0.7) * 0.85),
+              }}
+            />
 
-          {/* Subtle groove sheen overlay */}
-          <animated.div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: `repeating-radial-gradient(
+            {/* Subtle groove sheen overlay */}
+            <animated.div
+              className="absolute inset-0 rounded-full"
+              style={{
+                background: `repeating-radial-gradient(
                 circle at center,
                 transparent 0px,
                 rgba(255,255,255,0.04) 2px,
                 transparent 4px
               )`,
-              opacity: progress.to((p) => max(0, (p - 0.3) / 0.7)),
-            }}
-          />
+                opacity: progress.to((p) => max(0, (p - 0.3) / 0.7)),
+              }}
+            />
 
-          {/* Cover art — always visible */}
+            {/* Cover art — always visible */}
+            <animated.div
+              className="absolute rounded-full overflow-hidden bg-cover bg-center"
+              style={{
+                inset: progress.to((p) =>
+                  p < 0.33 ? `${(p / 0.33) * 8}%` : "8%",
+                ),
+                backgroundImage: `url(${coverUrl})`,
+                boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
+              }}
+            />
+          </animated.div>
+
+          {/* Top highlight arc */}
           <animated.div
-            className="absolute rounded-full overflow-hidden bg-cover bg-center"
+            className="absolute inset-0 rounded-full pointer-events-none"
             style={{
-              inset: progress.to((p) =>
-                p < 0.33 ? `${(p / 0.33) * 8}%` : "8%",
-              ),
-              backgroundImage: `url(${coverUrl})`,
-              boxShadow: "inset 0 0 3px 2px rgba(0,0,0,0.9)",
+              background:
+                "radial-gradient(ellipse 60% 40% at 35% 25%, rgba(255,255,255,0.18) 0%, transparent 70%)",
+              opacity: progress.to((p) => min(p * 2, 1)),
             }}
           />
         </animated.div>
-
-        {/* Top highlight arc */}
-        <animated.div
-          className="absolute inset-0 rounded-full pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(ellipse 60% 40% at 35% 25%, rgba(255,255,255,0.18) 0%, transparent 70%)",
-            opacity: progress.to((p) => min(p * 2, 1)),
-          }}
-        />
       </animated.div>
     </animated.div>
   );
