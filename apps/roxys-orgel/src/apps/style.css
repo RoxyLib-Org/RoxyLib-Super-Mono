@@ -2,6 +2,13 @@
 @plugin "daisyui";
 
 @theme inline {
+  /* Font family tokens */
+  --font-display: "Playfair Display", "Noto Serif SC", "Noto Serif JP", serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-lyric: "Crimson Pro", "Noto Serif SC", "Noto Serif JP", serif;
+  --font-cjk-sc: "Noto Serif SC", "Crimson Pro", serif;
+  --font-cjk-jp: "Noto Serif JP", "Crimson Pro", serif;
+
   --animate-aurora: aurora 60s linear infinite;
   @keyframes aurora {
     from {

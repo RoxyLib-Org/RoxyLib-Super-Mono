@@ -1,4 +1,5 @@
 import { animated, type SpringValue } from "@react-spring/web";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 interface TransportControlsProps {
   /** 0→1 zoom progress spring — transport visible when progress ≈ 1 */
@@ -11,6 +12,10 @@ interface TransportControlsProps {
   onPlayPause: () => void;
   onPrev: () => void;
   onNext: () => void;
+  /** Seek to a specific time in seconds */
+  onSeek: (time: number) => void;
+  /** Scrub state: { x, y } viewport coords of cursor-knob, null when idle */
+  onScrubChange: (knobPos: { x: number; y: number } | null) => void;
 }
 
 function formatTime(seconds: number): string {
@@ -30,12 +35,135 @@ export function TransportControls({
   onPlayPause,
   onPrev,
   onNext,
+  onSeek,
+  onScrubChange,
 }: TransportControlsProps) {
   const totalDuration = duration ?? DEFAULT_DURATION;
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [scrubFraction, setScrubFraction] = useState(0);
+  const [isHoveringTrack, setIsHoveringTrack] = useState(false);
+  const hoverRafRef = useRef(0);
+
+  /** Convert pointer X to fraction [0,1] within the track */
+  const xToFraction = useCallback((clientX: number) => {
+    const track = trackRef.current;
+    if (!track) return 0;
+    const rect = track.getBoundingClientRect();
+    return Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+  }, []);
+
+  /** Compute viewport coords for a given fraction along the track */
+  const getKnobPos = useCallback((fraction: number) => {
+    const track = trackRef.current;
+    if (!track) return null;
+    const rect = track.getBoundingClientRect();
+    return {
+      x: rect.left + fraction * rect.width,
+      y: rect.top + rect.height / 2,
+    };
+  }, []);
+
+  // When hovering (not dragging), continuously report the current elapsed knob pos
+  useEffect(() => {
+    if (!isHoveringTrack || isScrubbing) {
+      cancelAnimationFrame(hoverRafRef.current);
+      return;
+    }
+    let lastX = -1;
+    const tick = () => {
+      const frac = (elapsed.get() % totalDuration) / totalDuration;
+      const pos = getKnobPos(frac);
+      // Only update when position moved >= 0.5px to avoid thrashing renders
+      if (pos && Math.abs(pos.x - lastX) >= 0.5) {
+        lastX = pos.x;
+        onScrubChange(pos);
+      }
+      hoverRafRef.current = requestAnimationFrame(tick);
+    };
+    hoverRafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(hoverRafRef.current);
+  }, [
+    isHoveringTrack,
+    isScrubbing,
+    elapsed,
+    totalDuration,
+    getKnobPos,
+    onScrubChange,
+  ]);
+
+  const handleTrackEnter = useCallback(() => {
+    setIsHoveringTrack(true);
+  }, []);
+
+  const handleTrackLeave = useCallback(() => {
+    if (!isScrubbing) {
+      setIsHoveringTrack(false);
+      onScrubChange(null);
+    }
+  }, [isScrubbing, onScrubChange]);
+
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+      const frac = xToFraction(e.clientX);
+      setScrubFraction(frac);
+      setIsScrubbing(true);
+      onScrubChange(getKnobPos(frac));
+      // Immediate seek so disc + lyrics sync on click
+      onSeek(frac * totalDuration);
+    },
+    [xToFraction, getKnobPos, onScrubChange, onSeek, totalDuration],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isScrubbing) return;
+      const frac = xToFraction(e.clientX);
+      setScrubFraction(frac);
+      onScrubChange(getKnobPos(frac));
+      // Real-time seek — updates elapsed spring, disc rotation, and lyrics
+      onSeek(frac * totalDuration);
+    },
+    [isScrubbing, xToFraction, getKnobPos, onScrubChange, onSeek, totalDuration],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: React.PointerEvent) => {
+      if (!isScrubbing) return;
+      (e.target as HTMLElement).releasePointerCapture(e.pointerId);
+      const frac = xToFraction(e.clientX);
+      onSeek(frac * totalDuration);
+      setIsScrubbing(false);
+      // Clear immediately so cursor springs back to mouse position
+      setIsHoveringTrack(false);
+      onScrubChange(null);
+      // Re-engage hover snap after spring has time to animate back (~200ms)
+      const track = trackRef.current;
+      const cx = e.clientX;
+      const cy = e.clientY;
+      setTimeout(() => {
+        if (!track) return;
+        const rect = track.getBoundingClientRect();
+        if (
+          cx >= rect.left &&
+          cx <= rect.right &&
+          cy >= rect.top &&
+          cy <= rect.bottom
+        ) {
+          setIsHoveringTrack(true);
+        }
+      }, 220);
+    },
+    [isScrubbing, xToFraction, totalDuration, onSeek, onScrubChange],
+  );
 
   return (
     <animated.div
       className="absolute bottom-0 left-0 right-0 flex flex-col items-center gap-1.5 pb-4 sm:gap-3 sm:pb-10"
+      onPointerUp={(e) => e.stopPropagation()}
       style={{
         opacity: progress.to((p) =>
           Math.min(1, Math.max(0, (p - 0.83) / 0.17)),
@@ -47,20 +175,41 @@ export function TransportControls({
         pointerEvents: progress.to((p) => (p > 0.9 ? "auto" : "none")),
       }}
     >
-      {/* Progress bar */}
+      {/* Progress bar — cursor IS the knob */}
       <div className="w-48 sm:w-80 max-w-[85vw] flex items-center gap-1.5 sm:gap-3">
         <animated.span className="text-white/60 text-xs font-mono w-10 text-right">
-          {elapsed.to((v) => formatTime(v % totalDuration))}
+          {isScrubbing
+            ? formatTime(scrubFraction * totalDuration)
+            : elapsed.to((v) => formatTime(v % totalDuration))}
         </animated.span>
-        <div className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
-          <animated.div
-            className="h-full bg-white/80 rounded-full"
-            style={{
-              width: elapsed.to(
-                (v) => `${((v % totalDuration) / totalDuration) * 100}%`,
-              ),
-            }}
-          />
+        <div
+          ref={trackRef}
+          className="flex-1 h-5 flex items-center cursor-none"
+          data-cursor-snap="scrub"
+          onMouseEnter={handleTrackEnter}
+          onMouseLeave={handleTrackLeave}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          <div className="relative w-full h-1 bg-white/20 rounded-full">
+            {/* Filled portion — no knob; cursor itself is the knob */}
+            {isScrubbing ? (
+              <div
+                className="absolute inset-y-0 left-0 bg-white/80 rounded-full"
+                style={{ width: `${scrubFraction * 100}%` }}
+              />
+            ) : (
+              <animated.div
+                className="absolute inset-y-0 left-0 bg-white/80 rounded-full"
+                style={{
+                  width: elapsed.to(
+                    (v) => `${((v % totalDuration) / totalDuration) * 100}%`,
+                  ),
+                }}
+              />
+            )}
+          </div>
         </div>
         <span className="text-white/60 text-xs font-mono w-10">
           {formatTime(totalDuration)}
@@ -72,7 +221,8 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPrev}
-          className="text-white/70 hover:text-white transition-colors cursor-pointer"
+          data-cursor-snap="prev"
+          className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-none"
           aria-label="Previous track"
         >
           <svg
@@ -89,7 +239,8 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPlayPause}
-          className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-pointer"
+          data-cursor-snap={isPlaying ? "pause" : "play"}
+          className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-none"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
           {isPlaying ? (
@@ -118,7 +269,8 @@ export function TransportControls({
         <button
           type="button"
           onClick={onNext}
-          className="text-white/70 hover:text-white transition-colors cursor-pointer"
+          data-cursor-snap="next"
+          className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-none"
           aria-label="Next track"
         >
           <svg

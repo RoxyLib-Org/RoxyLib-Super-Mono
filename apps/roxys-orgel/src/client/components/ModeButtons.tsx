@@ -29,7 +29,10 @@ export function ModeButtons({
   );
 
   return (
-    <div className="absolute top-3 left-3 sm:top-6 sm:left-6 z-50 pointer-events-none">
+    <div
+      className="absolute top-3 left-3 sm:top-6 sm:left-6 z-50 pointer-events-none"
+      onPointerUp={(e) => e.stopPropagation()}
+    >
       {/* Level 2/3: minimize + maximize buttons */}
       <animated.div
         className="absolute top-0 left-0 flex items-center gap-2 sm:gap-4"
@@ -48,7 +51,8 @@ export function ModeButtons({
           type="button"
           onClick={onMinimize}
           aria-label="Minimize"
-          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          data-cursor-snap="minimize"
+          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-none shadow-md"
         >
           <svg
             width="16"
@@ -69,7 +73,8 @@ export function ModeButtons({
           type="button"
           onClick={onMaximize}
           aria-label="Maximize"
-          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
+          data-cursor-snap="maximize"
+          className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-none shadow-md"
         >
           <svg
             width="14"
@@ -92,7 +97,8 @@ export function ModeButtons({
         type="button"
         onClick={onClosePlayer}
         aria-label="Close player"
-        className="absolute top-0 left-0 w-10 h-10 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
+        data-cursor-snap="close"
+        className="absolute top-0 left-0 w-10 h-10 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-none"
         style={{
           opacity: playerVis,
           pointerEvents: progress.to((p) => (p > 0.9 ? "auto" : "none")),

@@ -166,6 +166,9 @@ export function VinylGrid() {
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
   const [currentTime, setCurrentTime] = useState(0);
+  const [scrubPos, setScrubPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
 
   // Current song data derived from active disc
   const currentSong = useMemo(
@@ -184,10 +187,6 @@ export function VinylGrid() {
   const offsetY = useSpringValue(0, { config: springConfig });
   const progress = useSpringValue(0.66, {
     config: { tension: 200, friction: 26 },
-  });
-  /** Aurora visibility — driven by play state */
-  const auroraSpring = useSpringValue(0, {
-    config: { tension: 140, friction: 20 },
   });
   /** Playback elapsed time (seconds). RAF-driven when playing. */
   const elapsedSpring = useSpringValue(0);
@@ -225,24 +224,9 @@ export function VinylGrid() {
     }
   }, [isPlaying, elapsedSpring]);
 
-  // ── Unified play/pause ─────────────────────────────────────────────────────
-  const play = useCallback(() => {
-    setIsPlaying(true);
-    auroraSpring.start(1);
-  }, [auroraSpring]);
-
-  const pause = useCallback(() => {
-    setIsPlaying(false);
-    auroraSpring.start(0);
-  }, [auroraSpring]);
-
-  const togglePlay = useCallback(() => {
-    setIsPlaying((prev) => {
-      const next = !prev;
-      auroraSpring.start(next ? 1 : 0);
-      return next;
-    });
-  }, [auroraSpring]);
+  // ── Unified play/pause (just state — aurora derived above) ────────────────
+  const play = useCallback(() => setIsPlaying(true), []);
+  const togglePlay = useCallback(() => setIsPlaying((prev) => !prev), []);
 
   const resetElapsed = useCallback(() => {
     elapsedRef.current = 0;
@@ -251,6 +235,16 @@ export function VinylGrid() {
     // Reset RAF anchor so next tick doesn't accumulate stale dt
     playStartRef.current = performance.now();
   }, [elapsedSpring]);
+
+  const seek = useCallback(
+    (time: number) => {
+      elapsedRef.current = time;
+      elapsedSpring.set(time);
+      setCurrentTime(time);
+      playStartRef.current = performance.now();
+    },
+    [elapsedSpring],
+  );
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
@@ -738,7 +732,7 @@ export function VinylGrid() {
       {/* Aurora — visible when progress ≈ 1 AND playing */}
       <AuroraBackground
         progress={progress}
-        playing={auroraSpring}
+        isPlaying={isPlaying}
         color={bgSpring.color}
       />
 
@@ -760,6 +754,7 @@ export function VinylGrid() {
             coord={coord}
             offset={[offsetX, offsetY]}
             progress={progress}
+            elapsed={elapsedSpring}
             index={idx}
             isCenterDisc={idx === centerDiscIndex}
             isActiveDisc={idx === activeDisc}
@@ -784,6 +779,8 @@ export function VinylGrid() {
         onPlayPause={togglePlay}
         onPrev={handlePrev}
         onNext={handleNext}
+        onSeek={seek}
+        onScrubChange={setScrubPos}
       />
 
       {/* Song info */}
@@ -811,6 +808,7 @@ export function VinylGrid() {
         hoveredDiscIndex={hoveredDiscIndex}
         centerDiscIndex={centerDiscIndex}
         compact={progressRef.current === 0}
+        scrubPos={scrubPos}
       />
     </div>
   );

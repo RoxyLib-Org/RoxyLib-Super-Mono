@@ -66,6 +66,8 @@ interface VinylDiscProps {
   coord: [number, number];
   offset: [SpringValue<number>, SpringValue<number>];
   progress: SpringValue<number>;
+  /** Global elapsed playback time in seconds */
+  elapsed: SpringValue<number>;
   index: number;
   isCenterDisc: boolean;
   /** This disc is the globally selected disc */
@@ -82,58 +84,31 @@ export function VinylDisc({
   coord,
   offset,
   progress,
+  elapsed,
   index,
   isCenterDisc,
   isActiveDisc,
   isPlaying,
   onHover,
 }: VinylDiscProps) {
-  // ── Self-contained rotation ─────────────────────────────────────────────
-  // Active + playing: RAF advances rotation.
-  // Active + paused: hold current position (do nothing).
-  // Not active: smoothly animate to 0 (disc was switched away).
+  // ── Rotation derived from elapsed time ────────────────────────────────────
+  // Active disc: rotation = (elapsed / period) * 360, continuously synced.
+  // Inactive disc: smoothly animate back to 0.
   const rotationSpring = useSpringValue(0, {
     config: { mass: 0.8, tension: 120, friction: 20 },
   });
-  const rotationRef = useRef(0);
-  const rafRef = useRef(0);
-  const lastTickRef = useRef(0);
-  const wasActiveRef = useRef(false);
 
   useEffect(() => {
     if (!isActiveDisc) {
-      // Switched away → smoothly spin down to 0
-      if (wasActiveRef.current) {
-        rotationSpring.start(0);
-        rotationRef.current = 0;
-      }
-      wasActiveRef.current = false;
-      return;
+      // Spin down to 0 when deactivated
+      rotationSpring.start(0);
     }
+  }, [isActiveDisc, rotationSpring]);
 
-    // Became active (disc switch) → reset rotation
-    if (!wasActiveRef.current) {
-      rotationRef.current = 0;
-      rotationSpring.set(0);
-    }
-    wasActiveRef.current = true;
-
-    if (isPlaying) {
-      // Advance rotation via RAF
-      lastTickRef.current = performance.now();
-      const tick = () => {
-        const now = performance.now();
-        const dt = (now - lastTickRef.current) / 1000;
-        lastTickRef.current = now;
-        rotationRef.current += (dt / DISC_ROTATION_PERIOD) * 360;
-        rotationSpring.set(rotationRef.current);
-        rafRef.current = requestAnimationFrame(tick);
-      };
-      rafRef.current = requestAnimationFrame(tick);
-      return () => cancelAnimationFrame(rafRef.current);
-    }
-    // Active but paused → hold position (no-op, rotation stays at current value)
-  }, [isActiveDisc, isPlaying, rotationSpring]);
+  // Active disc reads elapsed directly; inactive uses spring-to-zero
+  const rotation = isActiveDisc
+    ? elapsed.to((t) => (t / DISC_ROTATION_PERIOD) * 360)
+    : rotationSpring;
 
   // Derive player mode visibility: progress 0.83→1 maps to 0→1
   const playerMode = useMemo(
@@ -292,11 +267,11 @@ export function VinylDisc({
             }),
           }}
         >
-          {/* Rotation wrapper — driven by per-disc RAF, always ticking */}
+          {/* Rotation wrapper — synced to elapsed time */}
           <animated.div
             className="w-full h-full rounded-full"
             style={{
-              transform: rotationSpring.to((rot) => `rotate(${rot}deg)`),
+              transform: rotation.to((rot) => `rotate(${rot}deg)`),
             }}
           >
             {/* Vinyl grooves — visible only when progress > 0.3 */}

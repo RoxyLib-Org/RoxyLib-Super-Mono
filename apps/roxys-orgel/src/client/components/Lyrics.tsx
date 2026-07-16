@@ -22,14 +22,32 @@ function getActiveLine(lyrics: LyricLine[], time: number): number {
   return 0;
 }
 
-/**
- * Measure text widths for all lyric lines using Pretext (no DOM reflow).
- * Returns pixel width for each line at the active (larger) font size.
- * Safe to call only in browser (requires Canvas).
- */
+/** Detect if text contains CJK characters (Chinese/Japanese/Korean) */
+function detectLang(text: string): "sc" | "jp" | "latin" {
+  // Japanese-specific: hiragana/katakana
+  if (/[\u3040-\u309F\u30A0-\u30FF]/.test(text)) return "jp";
+  // CJK Unified Ideographs (shared by CN/JP, but without kana → likely Chinese)
+  if (/[\u4E00-\u9FFF]/.test(text)) return "sc";
+  return "latin";
+}
+
+/** Font class for a given detected language */
+function fontClassForLang(lang: "sc" | "jp" | "latin"): string {
+  switch (lang) {
+    case "sc":
+      return "font-cjk-sc";
+    case "jp":
+      return "font-cjk-jp";
+    default:
+      return "font-lyric";
+  }
+}
+
 function measureLines(lyrics: LyricLine[]): number[] {
   if (typeof document === "undefined") return lyrics.map(() => 0);
-  const font = '500 18px "Inter", system-ui, sans-serif';
+  // Use the lyric serif font for measurement (Crimson Pro for Latin, with CJK fallbacks)
+  const font =
+    '500 18px "Crimson Pro", "Noto Serif SC", "Noto Serif JP", serif';
   return lyrics.map((line) => {
     const handle = prepareWithSegments(line.text, font);
     return measureNaturalWidth(handle);
@@ -134,6 +152,8 @@ export function Lyrics({
           // How much the text overflows the container
           const overflowPx = isShort ? 0 : textWidth - containerWidth;
 
+          const lang = detectLang(line.text);
+          const fontClass = fontClassForLang(lang);
           const baseClass =
             "whitespace-nowrap py-1 transition-all duration-300 ease-out";
           const sizeClass = isActive
@@ -145,7 +165,7 @@ export function Lyrics({
             <div
               key={`${line.time}-${idx}`}
               ref={isActive ? activeLineRef : undefined}
-              className={`${baseClass} ${sizeClass} ${alignClass}`}
+              className={`${fontClass} ${baseClass} ${sizeClass} ${alignClass}`}
               style={
                 isActive && !isShort
                   ? {

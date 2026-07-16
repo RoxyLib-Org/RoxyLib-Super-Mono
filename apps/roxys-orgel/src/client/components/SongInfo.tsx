@@ -53,13 +53,13 @@ export function SongInfo({ song, isPlayerMode }: SongInfoProps) {
         ),
       }}
     >
-      <div className="text-white text-lg sm:text-2xl font-bold leading-tight truncate">
+      <div className="font-display text-white text-lg sm:text-2xl font-semibold leading-tight truncate tracking-wide">
         {displaySong.title}
       </div>
-      <div className="text-white/70 text-sm sm:text-base mt-0.5 truncate">
+      <div className="font-display text-white/70 text-sm sm:text-base mt-1 truncate italic">
         {displaySong.artist}
       </div>
-      <div className="text-white/50 text-xs sm:text-sm mt-0.5 truncate">
+      <div className="font-body text-white/50 text-xs sm:text-sm mt-0.5 truncate tracking-wider uppercase">
         {displaySong.album}
       </div>
     </animated.div>
