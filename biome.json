@@ -58,14 +58,7 @@
         "enabled": false
       },
       "linter": {
-        "rules": {
-          "suspicious": {
-            "noExplicitAny": "off"
-          },
-          "complexity": {
-            "noBannedTypes": "off"
-          }
-        }
+        "enabled": false
       }
     }
   ]

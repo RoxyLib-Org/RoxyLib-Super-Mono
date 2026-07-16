@@ -1,5 +1,5 @@
-import { describe, it, expect } from "vitest";
-import { artists, albums, songs, lyrics } from "@lib/db";
+import { albums, artists, lyrics, songs } from "@lib/db";
+import { describe, expect, it } from "vitest";
 
 describe("DB Schema", () => {
   it("artists table has expected columns (no coverKey)", () => {

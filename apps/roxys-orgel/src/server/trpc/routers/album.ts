@@ -1,25 +1,23 @@
-import { z } from "zod";
+import db, { albums, artists, eq, songs } from "@lib/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import db, { albums, artists, songs, eq } from "@lib/db";
 
 export const albumRouter = router({
-  list: publicProcedure
-    .input(z.object({}))
-    .query(async ({ ctx }) => {
-      const database = db(ctx.env.DB);
-      return database
-        .select({
-          id: albums.id,
-          title: albums.title,
-          releaseYear: albums.releaseYear,
-          artistId: albums.artistId,
-          artistName: artists.name,
-        })
-        .from(albums)
-        .innerJoin(artists, eq(albums.artistId, artists.id))
-        .orderBy(albums.releaseYear);
-    }),
+  list: publicProcedure.input(z.object({})).query(async ({ ctx }) => {
+    const database = db(ctx.env.DB);
+    return database
+      .select({
+        id: albums.id,
+        title: albums.title,
+        releaseYear: albums.releaseYear,
+        artistId: albums.artistId,
+        artistName: artists.name,
+      })
+      .from(albums)
+      .innerJoin(artists, eq(albums.artistId, artists.id))
+      .orderBy(albums.releaseYear);
+  }),
 
   byId: publicProcedure
     .input(z.object({ id: z.string() }))

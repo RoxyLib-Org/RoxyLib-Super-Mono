@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { z } from "zod";
 import { artistRouter } from "@/server/trpc/routers/artist";
 
@@ -12,9 +12,7 @@ describe("artistRouter", () => {
   });
 
   it("artist.byId input schema requires id string", () => {
-    expect(() =>
-      parseInput(artistRouter.byId, { id: "ar1" }),
-    ).not.toThrow();
+    expect(() => parseInput(artistRouter.byId, { id: "ar1" })).not.toThrow();
     expect(() => parseInput(artistRouter.byId, {})).toThrow();
   });
 });

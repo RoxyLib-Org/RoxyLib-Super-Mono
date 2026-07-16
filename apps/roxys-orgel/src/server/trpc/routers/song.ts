@@ -1,7 +1,7 @@
-import { z } from "zod";
+import db, { albums, and, artists, asc, eq, lyrics, songs } from "@lib/db";
 import { TRPCError } from "@trpc/server";
+import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
-import db, { songs, albums, artists, lyrics, eq, and, asc } from "@lib/db";
 
 export const songRouter = router({
   list: publicProcedure
