@@ -54,10 +54,16 @@
         "**/__generated__/**",
         "**/worker-configuration.d.ts"
       ],
+      "formatter": {
+        "enabled": false
+      },
       "linter": {
         "rules": {
           "suspicious": {
             "noExplicitAny": "off"
+          },
+          "complexity": {
+            "noBannedTypes": "off"
           }
         }
       }

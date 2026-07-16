@@ -355,18 +355,15 @@ export function VinylGrid() {
   const isDraggingRef = useRef(false);
   const DRAG_THRESHOLD = 5;
 
-  const handleMouseDown = useCallback(
-    (evt: React.MouseEvent) => {
-      setIsHold(true);
-      isDraggingRef.current = false;
-      mouseStartRef.current = { x: evt.clientX, y: evt.clientY };
+  const handleMouseDown = useCallback((evt: React.MouseEvent) => {
+    setIsHold(true);
+    isDraggingRef.current = false;
+    mouseStartRef.current = { x: evt.clientX, y: evt.clientY };
 
-      if (progressRef.current > 0) {
-        savedProgressRef.current = progressRef.current;
-      }
-    },
-    [progress, playerMode, playerSpring, bgApi],
-  );
+    if (progressRef.current > 0) {
+      savedProgressRef.current = progressRef.current;
+    }
+  }, []);
 
   const handleMouseMove = useCallback(
     (evt: React.MouseEvent) => {
@@ -378,7 +375,10 @@ export function VinylGrid() {
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isDraggingRef.current = true;
           // Only shrink on confirmed drag, not on click
-          if (savedProgressRef.current > 0 && savedProgressRef.current !== 0.66) {
+          if (
+            savedProgressRef.current > 0 &&
+            savedProgressRef.current !== 0.66
+          ) {
             progress.start(0.66);
           }
           if (playerMode) {
@@ -396,18 +396,36 @@ export function VinylGrid() {
         updateCenter();
       }
     },
-    [isHold, offsetX, offsetY, updateCenter, progress, playerMode, playerSpring, bgApi],
+    [
+      isHold,
+      offsetX,
+      offsetY,
+      updateCenter,
+      progress,
+      playerMode,
+      playerSpring,
+      bgApi,
+    ],
   );
 
   const handleMouseUp = useCallback(
     (_evt: React.MouseEvent) => {
-      console.log("[DEBUG] handleMouseUp fired, isDragging:", isDraggingRef.current, "hoveredDiscIndex:", hoveredDiscIndex);
+      console.log(
+        "[DEBUG] handleMouseUp fired, isDragging:",
+        isDraggingRef.current,
+        "hoveredDiscIndex:",
+        hoveredDiscIndex,
+      );
       setIsHold(false);
 
       if (!isDraggingRef.current) {
         // Click — use hovered disc from mouseenter/leave
         if (hoveredDiscIndex >= 0) {
-          console.log("[DEBUG] handleMouseUp: calling handleDiscClick(", hoveredDiscIndex, ")");
+          console.log(
+            "[DEBUG] handleMouseUp: calling handleDiscClick(",
+            hoveredDiscIndex,
+            ")",
+          );
           handleDiscClick(hoveredDiscIndex);
         }
         // Restore progress if changed on mouseDown
@@ -415,7 +433,10 @@ export function VinylGrid() {
           progressRef.current !== savedProgressRef.current &&
           savedProgressRef.current > 0
         ) {
-          console.log("[DEBUG] handleMouseUp: restoring progress to", savedProgressRef.current);
+          console.log(
+            "[DEBUG] handleMouseUp: restoring progress to",
+            savedProgressRef.current,
+          );
           progressRef.current = savedProgressRef.current;
           progress.start(savedProgressRef.current);
           if (savedProgressRef.current >= 1 && activeDisc >= 0) {

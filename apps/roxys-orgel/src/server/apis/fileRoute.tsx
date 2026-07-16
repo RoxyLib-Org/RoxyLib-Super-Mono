@@ -1,9 +1,9 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createRequestHandler,
   RouterServer,
   renderRouterToStream,
 } from "@tanstack/react-router/ssr/server";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import type { Context } from "hono";
 import {
   Link,

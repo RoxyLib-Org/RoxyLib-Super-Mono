@@ -44,7 +44,10 @@ export function ModeButtons({
         {/* Minimize → level 1 */}
         <button
           type="button"
-          onClick={() => { console.log("[DEBUG] ModeButtons: minimize button clicked"); onMinimize(); }}
+          onClick={() => {
+            console.log("[DEBUG] ModeButtons: minimize button clicked");
+            onMinimize();
+          }}
           aria-label="Minimize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -64,7 +67,10 @@ export function ModeButtons({
         {/* Maximize → level 4 (player) */}
         <button
           type="button"
-          onClick={() => { console.log("[DEBUG] ModeButtons: maximize button clicked"); onMaximize(); }}
+          onClick={() => {
+            console.log("[DEBUG] ModeButtons: maximize button clicked");
+            onMaximize();
+          }}
           aria-label="Maximize"
           className="w-20 h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-pointer shadow-md"
         >
@@ -86,7 +92,10 @@ export function ModeButtons({
       {/* Player mode: ghost X button — AFTER minimize so it stacks on top */}
       <animated.button
         type="button"
-        onClick={() => { console.log("[DEBUG] ModeButtons: X (closePlayer) button clicked"); onClosePlayer(); }}
+        onClick={() => {
+          console.log("[DEBUG] ModeButtons: X (closePlayer) button clicked");
+          onClosePlayer();
+        }}
         aria-label="Close player"
         className="absolute top-0 left-0 w-20 h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer"
         style={{

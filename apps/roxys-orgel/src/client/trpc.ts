@@ -12,7 +12,7 @@ export const trpcClient = trpc.createClient({
     httpBatchLink({
       url: isServer ? "http://localhost/api/trpc" : "/api/trpc",
       transformer: superjson,
-      fetch: isServer ? (() => Promise.resolve(new Response("[]"))) : undefined,
+      fetch: isServer ? () => Promise.resolve(new Response("[]")) : undefined,
     }),
   ],
 });

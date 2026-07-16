@@ -1,5 +1,5 @@
-import { Hono } from "hono";
 import type { Context } from "hono";
+import { Hono } from "hono";
 
 interface Env {
   ASSETS: R2Bucket;
@@ -88,7 +88,10 @@ async function serveAssets(c: Context<{ Bindings: Env }>): Promise<Response> {
   return new Response(object.body, { headers });
 }
 
-async function proxy(c: Context<{ Bindings: Env }>, service: keyof typeof ORIGINS): Promise<Response> {
+async function proxy(
+  c: Context<{ Bindings: Env }>,
+  service: keyof typeof ORIGINS,
+): Promise<Response> {
   const origin = ORIGINS[service];
   const reqUrl = new URL(c.req.url);
   const target = new URL(reqUrl.pathname + reqUrl.search, origin);

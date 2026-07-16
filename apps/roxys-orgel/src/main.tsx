@@ -1,4 +1,5 @@
 import { trpcServer } from "@hono/trpc-server";
+import type { Context } from "hono";
 import { Hono } from "hono";
 import fileRoute from "@/server/apis/fileRoute";
 import { createTRPCContext } from "@/server/trpc/context";
@@ -12,7 +13,7 @@ app.use(
   "/api/trpc/*",
   trpcServer({
     router: appRouter,
-    createContext: (_opts, c) => createTRPCContext(c),
+    createContext: (opts, c: Context<HonoCtxEnv>) => createTRPCContext(opts, c),
   }),
 );
 
