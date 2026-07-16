@@ -248,6 +248,8 @@ export function VinylGrid() {
     elapsedRef.current = 0;
     elapsedSpring.set(0);
     setCurrentTime(0);
+    // Reset RAF anchor so next tick doesn't accumulate stale dt
+    playStartRef.current = performance.now();
   }, [elapsedSpring]);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
