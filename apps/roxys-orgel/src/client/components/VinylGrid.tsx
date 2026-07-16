@@ -190,9 +190,7 @@ export function VinylGrid() {
     config: { tension: 140, friction: 20 },
   });
   /** Playback elapsed time (seconds). RAF-driven when playing. */
-  const elapsedSpring = useSpringValue(0, {
-    config: { mass: 0.4, tension: 400, friction: 35 },
-  });
+  const elapsedSpring = useSpringValue(0);
   const elapsedRef = useRef(0);
   const playRafRef = useRef(0);
   const playStartRef = useRef(0);
@@ -215,7 +213,7 @@ export function VinylGrid() {
         const dt = (now - playStartRef.current) / 1000;
         playStartRef.current = now;
         elapsedRef.current += dt;
-        elapsedSpring.start(elapsedRef.current);
+        elapsedSpring.set(elapsedRef.current);
         if (now - lastTimeUpdateRef.current > 250) {
           lastTimeUpdateRef.current = now;
           setCurrentTime(elapsedRef.current);
@@ -248,7 +246,7 @@ export function VinylGrid() {
 
   const resetElapsed = useCallback(() => {
     elapsedRef.current = 0;
-    elapsedSpring.start(0);
+    elapsedSpring.set(0);
     setCurrentTime(0);
   }, [elapsedSpring]);
 
@@ -763,7 +761,8 @@ export function VinylGrid() {
             progress={progress}
             index={idx}
             isCenterDisc={idx === centerDiscIndex}
-            isPlayingDisc={idx === activeDisc && isPlaying}
+            isActiveDisc={idx === activeDisc}
+            isPlaying={isPlaying}
             onHover={setHoveredDiscIndex}
           />
         ))}

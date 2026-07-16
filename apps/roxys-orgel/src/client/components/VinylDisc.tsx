@@ -68,7 +68,10 @@ interface VinylDiscProps {
   progress: SpringValue<number>;
   index: number;
   isCenterDisc: boolean;
-  isPlayingDisc: boolean;
+  /** This disc is the globally selected disc */
+  isActiveDisc: boolean;
+  /** Global playback state */
+  isPlaying: boolean;
   onHover: (index: number) => void;
 }
 
@@ -81,24 +84,42 @@ export function VinylDisc({
   progress,
   index,
   isCenterDisc,
-  isPlayingDisc,
+  isActiveDisc,
+  isPlaying,
   onHover,
 }: VinylDiscProps) {
   // ── Self-contained rotation ─────────────────────────────────────────────
-  // Each disc owns its rotation. When playing: RAF advances rotation spring.
-  // When switched away: spring smoothly decelerates to 0.
+  // Active + playing: RAF advances rotation.
+  // Active + paused: hold current position (do nothing).
+  // Not active: smoothly animate to 0 (disc was switched away).
   const rotationSpring = useSpringValue(0, {
     config: { mass: 0.8, tension: 120, friction: 20 },
   });
   const rotationRef = useRef(0);
   const rafRef = useRef(0);
   const lastTickRef = useRef(0);
+  const wasActiveRef = useRef(false);
 
   useEffect(() => {
-    if (isPlayingDisc) {
-      // Start from 0 each time this disc becomes active
+    if (!isActiveDisc) {
+      // Switched away → smoothly spin down to 0
+      if (wasActiveRef.current) {
+        rotationSpring.start(0);
+        rotationRef.current = 0;
+      }
+      wasActiveRef.current = false;
+      return;
+    }
+
+    // Became active (disc switch) → reset rotation
+    if (!wasActiveRef.current) {
       rotationRef.current = 0;
       rotationSpring.set(0);
+    }
+    wasActiveRef.current = true;
+
+    if (isPlaying) {
+      // Advance rotation via RAF
       lastTickRef.current = performance.now();
       const tick = () => {
         const now = performance.now();
@@ -111,9 +132,8 @@ export function VinylDisc({
       rafRef.current = requestAnimationFrame(tick);
       return () => cancelAnimationFrame(rafRef.current);
     }
-    // Not playing → smoothly animate to 0
-    rotationSpring.start(0);
-  }, [isPlayingDisc, rotationSpring]);
+    // Active but paused → hold position (no-op, rotation stays at current value)
+  }, [isActiveDisc, isPlaying, rotationSpring]);
 
   // Derive player mode visibility: progress 0.83→1 maps to 0→1
   const playerMode = useMemo(
