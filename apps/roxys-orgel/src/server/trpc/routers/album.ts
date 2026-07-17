@@ -4,7 +4,7 @@ import { publicProcedure, router } from "../trpc";
 import { scanR2 } from "@/server/utils/r2-scanner";
 
 export const albumRouter = router({
-  list: publicProcedure.input(z.object({})).query(async ({ ctx }) => {
+  list: publicProcedure.query(async ({ ctx }) => {
     const { albums } = await scanR2(ctx.env.R2, ctx.env.KV);
     return albums.map((a) => ({
       id: a.id,

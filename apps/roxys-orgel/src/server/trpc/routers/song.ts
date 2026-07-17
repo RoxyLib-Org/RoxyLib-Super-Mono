@@ -8,7 +8,7 @@ export const songRouter = router({
     .input(
       z.object({
         albumId: z.string().optional(),
-      }),
+      }).optional().default({}),
     )
     .query(async ({ input, ctx }) => {
       const { albums } = await scanR2(ctx.env.R2, ctx.env.KV);
