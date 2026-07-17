@@ -14,15 +14,14 @@ export const app = new Hono<HonoCtxEnv>();
 app.route("/", audioRoute);
 app.route("/", coverRoute);
 
-// tRPC handler
-app.use(
-  "/api/trpc/*",
-  trpcServer({
-    router: appRouter,
-    endpoint: "/api/trpc",
-    createContext: (opts, c: Context<HonoCtxEnv>) => createTRPCContext(opts, c),
-  }),
-);
+// tRPC handler — match /api/trpc (batch) and /api/trpc/* (single)
+const trpcHandler = trpcServer({
+  router: appRouter,
+  endpoint: "/api/trpc",
+  createContext: (opts, c: Context<HonoCtxEnv>) => createTRPCContext(opts, c),
+});
+app.use("/api/trpc", trpcHandler);
+app.use("/api/trpc/*", trpcHandler);
 
 // SSR catch-all
 app.get("/*", fileRoute);
