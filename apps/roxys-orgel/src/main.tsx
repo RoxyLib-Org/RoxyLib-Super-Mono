@@ -19,6 +19,7 @@ app.use(
   "/api/trpc/*",
   trpcServer({
     router: appRouter,
+    endpoint: "/api/trpc",
     createContext: (opts, c: Context<HonoCtxEnv>) => createTRPCContext(opts, c),
   }),
 );
