@@ -7,13 +7,9 @@ function parseInput(proc: { _def: { inputs: unknown[] } }, data: unknown) {
 }
 
 describe("songRouter", () => {
-  it("song.list input schema accepts optional artistId and albumId", () => {
+  it("song.list input schema accepts optional albumId", () => {
     expect(() => parseInput(songRouter.list, {})).not.toThrow();
-    expect(() => parseInput(songRouter.list, { artistId: "a1" })).not.toThrow();
     expect(() => parseInput(songRouter.list, { albumId: "b1" })).not.toThrow();
-    expect(() =>
-      parseInput(songRouter.list, { artistId: "a1", albumId: "b1" }),
-    ).not.toThrow();
   });
 
   it("song.byId input schema requires id string", () => {

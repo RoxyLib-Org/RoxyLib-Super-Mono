@@ -1,24 +1,13 @@
-import db, { eq, songs } from "@lib/db";
 import { Hono } from "hono";
 import type { HonoCtxEnv } from "@/shared/types";
+import { decodeId } from "@/server/utils/r2-scanner";
 
 export const audioRoute = new Hono<HonoCtxEnv>().get(
-  "/api/audio/:songId",
+  "/api/audio/:encodedKey",
   async (c) => {
-    const songId = c.req.param("songId");
-    const database = db(c.env.DB);
+    const r2Key = decodeId(c.req.param("encodedKey"));
 
-    const [song] = await database
-      .select({ id: songs.id, r2Key: songs.r2Key })
-      .from(songs)
-      .where(eq(songs.id, songId));
-
-    if (!song) {
-      return c.json({ error: "Song not found" }, 404);
-    }
-
-    // R2.head() 获取元数据（不下载 body）
-    const headObject = await c.env.R2.head(song.r2Key);
+    const headObject = await c.env.R2.head(r2Key);
     if (!headObject) {
       return c.json({ error: "Audio file not found" }, 404);
     }
@@ -47,7 +36,7 @@ export const audioRoute = new Hono<HonoCtxEnv>().get(
       }
 
       const length = end - start + 1;
-      const object = await c.env.R2.get(song.r2Key, {
+      const object = await c.env.R2.get(r2Key, {
         range: { offset: start, length },
       });
 
@@ -61,9 +50,8 @@ export const audioRoute = new Hono<HonoCtxEnv>().get(
       return new Response(object.body, { status: 206, headers });
     }
 
-    // 完整文件下载
     headers.set("Content-Length", String(headObject.size));
-    const object = await c.env.R2.get(song.r2Key);
+    const object = await c.env.R2.get(r2Key);
     if (!object) {
       return c.json({ error: "Audio file not found" }, 404);
     }

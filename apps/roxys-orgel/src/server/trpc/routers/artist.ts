@@ -1,33 +1,20 @@
-import db, { albums, artists, eq, songs } from "@lib/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
+import { scanR2 } from "@/server/utils/r2-scanner";
 
 export const artistRouter = router({
   list: publicProcedure.input(z.object({})).query(async ({ ctx }) => {
-    const database = db(ctx.env.DB);
-    return database
-      .select({
-        id: artists.id,
-        name: artists.name,
-        description: artists.description,
-      })
-      .from(artists);
+    const { artists } = await scanR2(ctx.env.R2, ctx.env.KV);
+    return artists;
   }),
 
   byId: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      const database = db(ctx.env.DB);
-      const [artist] = await database
-        .select({
-          id: artists.id,
-          name: artists.name,
-          description: artists.description,
-        })
-        .from(artists)
-        .where(eq(artists.id, input.id));
+      const { artists, albums } = await scanR2(ctx.env.R2, ctx.env.KV);
 
+      const artist = artists.find((a) => a.id === input.id);
       if (!artist) {
         throw new TRPCError({
           code: "NOT_FOUND",
@@ -35,30 +22,34 @@ export const artistRouter = router({
         });
       }
 
-      const artistAlbums = await database
-        .select({
-          id: albums.id,
-          title: albums.title,
-          releaseYear: albums.releaseYear,
-        })
-        .from(albums)
-        .where(eq(albums.artistId, input.id))
-        .orderBy(albums.releaseYear);
+      const artistAlbums = albums
+        .filter((a) => a.artistName === artist.name)
+        .map((a) => ({
+          id: a.id,
+          title: a.title,
+          coverKey: a.coverKey,
+          songCount: a.songs.length,
+        }));
 
-      const artistSongs = await database
-        .select({
-          id: songs.id,
-          title: songs.title,
-          trackNumber: songs.trackNumber,
-          duration: songs.duration,
-          albumId: songs.albumId,
-          albumTitle: albums.title,
-        })
-        .from(songs)
-        .innerJoin(albums, eq(songs.albumId, albums.id))
-        .where(eq(songs.artistId, input.id))
-        .orderBy(songs.trackNumber);
+      const artistSongs = albums
+        .filter((a) => a.artistName === artist.name)
+        .flatMap((a) =>
+          a.songs.map((s) => ({
+            id: s.id,
+            title: s.title,
+            trackNumber: s.trackNumber,
+            r2Key: s.r2Key,
+            albumId: a.id,
+            albumTitle: a.title,
+          })),
+        )
+        .sort((a, b) => a.trackNumber - b.trackNumber);
 
-      return { ...artist, albums: artistAlbums, songs: artistSongs };
+      return {
+        id: artist.id,
+        name: artist.name,
+        albums: artistAlbums,
+        songs: artistSongs,
+      };
     }),
 });

@@ -12,14 +12,14 @@ describe("DB Schema", () => {
     expect(columns).not.toContain("coverKey");
   });
 
-  it("albums table has expected columns (no coverKey)", () => {
+  it("albums table has expected columns (with coverKey)", () => {
     const columns = Object.keys(albums);
     expect(columns).toContain("id");
     expect(columns).toContain("title");
     expect(columns).toContain("artistId");
     expect(columns).toContain("releaseYear");
+    expect(columns).toContain("coverKey");
     expect(columns).toContain("createdAt");
-    expect(columns).not.toContain("coverKey");
   });
 
   it("songs table has expected columns (no coverKey, has r2Key)", () => {

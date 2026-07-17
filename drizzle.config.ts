@@ -2,7 +2,7 @@ import "dotenv/config";
 import { defineConfig } from "drizzle-kit";
 
 export default defineConfig({
-  out: "./drizzle",
+  out: "./apps/roxys-orgel/drizzle",
   schema: "./libs/db/src/schema.ts",
   dialect: "sqlite",
   driver: "d1-http",

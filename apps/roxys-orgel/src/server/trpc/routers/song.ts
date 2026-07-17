@@ -1,69 +1,58 @@
-import db, { albums, and, artists, asc, eq, lyrics, songs } from "@lib/db";
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
 import { publicProcedure, router } from "../trpc";
+import { decodeId, scanR2 } from "@/server/utils/r2-scanner";
 
 export const songRouter = router({
   list: publicProcedure
     .input(
       z.object({
-        artistId: z.string().optional(),
         albumId: z.string().optional(),
       }),
     )
     .query(async ({ input, ctx }) => {
-      const database = db(ctx.env.DB);
-      const conditions = [];
-      if (input.artistId) conditions.push(eq(songs.artistId, input.artistId));
-      if (input.albumId) conditions.push(eq(songs.albumId, input.albumId));
+      const { albums } = await scanR2(ctx.env.R2, ctx.env.KV);
 
-      return database
-        .select({
-          id: songs.id,
-          title: songs.title,
-          trackNumber: songs.trackNumber,
-          duration: songs.duration,
-          artistId: songs.artistId,
-          artistName: artists.name,
-          albumId: songs.albumId,
-          albumTitle: albums.title,
-        })
-        .from(songs)
-        .innerJoin(artists, eq(songs.artistId, artists.id))
-        .innerJoin(albums, eq(songs.albumId, albums.id))
-        .where(conditions.length > 0 ? and(...conditions) : undefined)
-        .orderBy(asc(songs.trackNumber));
+      // Filter by album if specified
+      const targetAlbums = input.albumId
+        ? albums.filter((a) => a.id === input.albumId)
+        : albums;
+
+      const allSongs = targetAlbums.flatMap((album) =>
+        album.songs.map((s) => ({
+          id: s.id,
+          title: s.title,
+          trackNumber: s.trackNumber,
+          r2Key: s.r2Key,
+          albumId: album.id,
+          albumTitle: album.title,
+          artistName: album.artistName,
+        })),
+      );
+
+      return allSongs.sort((a, b) => a.trackNumber - b.trackNumber);
     }),
 
   byId: publicProcedure
     .input(z.object({ id: z.string() }))
     .query(async ({ input, ctx }) => {
-      const database = db(ctx.env.DB);
-      const result = await database
-        .select({
-          id: songs.id,
-          title: songs.title,
-          trackNumber: songs.trackNumber,
-          duration: songs.duration,
-          r2Key: songs.r2Key,
-          artistId: songs.artistId,
-          artistName: artists.name,
-          artistDescription: artists.description,
-          albumId: songs.albumId,
-          albumTitle: albums.title,
-          albumReleaseYear: albums.releaseYear,
-          lyricContent: lyrics.content,
-        })
-        .from(songs)
-        .innerJoin(artists, eq(songs.artistId, artists.id))
-        .innerJoin(albums, eq(songs.albumId, albums.id))
-        .leftJoin(lyrics, eq(songs.id, lyrics.songId))
-        .where(eq(songs.id, input.id));
+      const { albums } = await scanR2(ctx.env.R2, ctx.env.KV);
 
-      if (result.length === 0) {
-        throw new TRPCError({ code: "NOT_FOUND", message: "Song not found" });
+      for (const album of albums) {
+        const song = album.songs.find((s) => s.id === input.id);
+        if (song) {
+          return {
+            id: song.id,
+            title: song.title,
+            trackNumber: song.trackNumber,
+            r2Key: song.r2Key,
+            albumId: album.id,
+            albumTitle: album.title,
+            artistName: album.artistName,
+          };
+        }
       }
 
-      return result[0];
+      throw new TRPCError({ code: "NOT_FOUND", message: "Song not found" });
     }),
 });

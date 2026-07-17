@@ -14,6 +14,7 @@ export const albums = sqliteTable("albums", {
     .references(() => artists.id)
     .notNull(),
   releaseYear: integer("release_year"),
+  coverKey: text("cover_key"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });
 
