@@ -41,6 +41,18 @@ export default async function fileRoute(
             />
             <title>Roxy's Orgel</title>
 
+            {/* Google Fonts — multilingual typography */}
+            <link rel="preconnect" href="https://fonts.googleapis.com" />
+            <link
+              rel="preconnect"
+              href="https://fonts.gstatic.com"
+              crossOrigin=""
+            />
+            <link
+              href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&family=Noto+Serif+JP:wght@300;400;500;600&family=Noto+Serif+SC:wght@300;400;500;600&family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&display=swap"
+              rel="stylesheet"
+            />
+
             <ViteClient />
             <ReactRefresh />
 

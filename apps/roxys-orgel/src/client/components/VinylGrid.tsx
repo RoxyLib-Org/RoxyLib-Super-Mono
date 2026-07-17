@@ -1,8 +1,11 @@
 import { animated, useSpring, useSpringValue } from "@react-spring/web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { getSong } from "../data/songs";
 import { AuroraBackground } from "./AuroraBackground";
 import { CustomCursor } from "./CustomCursor";
+import { Lyrics } from "./Lyrics";
 import { ModeButtons } from "./ModeButtons";
+import { SongInfo } from "./SongInfo";
 import { TransportControls } from "./TransportControls";
 import {
   getVinylColor,
@@ -136,10 +139,10 @@ function useViewportScale(): number {
 }
 
 function computeScale(vw: number): number {
-  // Full size at 1024px+, scales down linearly to 0.5 at 320px
+  // Full size at 1024px+, scales down linearly to 0.25 at 320px
   if (vw >= 1024) return 1;
-  if (vw <= 320) return 0.5;
-  return 0.5 + ((vw - 320) / (1024 - 320)) * 0.5;
+  if (vw <= 320) return 0.25;
+  return 0.25 + ((vw - 320) / (1024 - 320)) * 0.75;
 }
 
 export function VinylGrid() {
@@ -154,13 +157,24 @@ export function VinylGrid() {
   const viewportScale = useViewportScale();
 
   // ── State ──────────────────────────────────────────────────────────────────
+  // progress (spring 0→1) is the SINGLE zoom source of truth.
+  // Derived: isPlayer = progress ≈ 1, isLevel1 = progress ≈ 0
+  // No separate playerMode/atLevel1/playerSpring — everything reads progress.
   const [isHold, setIsHold] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [activeDisc, setActiveDisc] = useState(-1); // -1 = none
-  const [playerMode, setPlayerMode] = useState(false);
-  const [atLevel1, setAtLevel1] = useState(false);
   const [hoveredDiscIndex, setHoveredDiscIndex] = useState(-1);
   const [centerDiscIndex, setCenterDiscIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [scrubPos, setScrubPos] = useState<{ x: number; y: number } | null>(
+    null,
+  );
+
+  // Current song data derived from active disc
+  const currentSong = useMemo(
+    () => (activeDisc >= 0 ? getSong(activeDisc) : null),
+    [activeDisc],
+  );
 
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
@@ -174,13 +188,63 @@ export function VinylGrid() {
   const progress = useSpringValue(0.66, {
     config: { tension: 200, friction: 26 },
   });
-  const playerSpring = useSpringValue(0, {
-    config: { tension: 160, friction: 22 },
-  });
+  /** Playback elapsed time (seconds). RAF-driven when playing. */
+  const elapsedSpring = useSpringValue(0);
+  const elapsedRef = useRef(0);
+  const playRafRef = useRef(0);
+  const playStartRef = useRef(0);
+  const lastTimeUpdateRef = useRef(0);
   const [bgSpring, bgApi] = useSpring(() => ({
     color: "rgb(0,0,0)",
     config: { tension: 200, friction: 26 },
   }));
+
+  // Keep ref in sync so callbacks always see current activeDisc
+  const activeDiscRef = useRef(-1);
+  activeDiscRef.current = activeDisc;
+
+  // ── Elapsed time driver (RAF) ─────────────────────────────────────────────
+  useEffect(() => {
+    if (isPlaying) {
+      playStartRef.current = performance.now();
+      const tick = () => {
+        const now = performance.now();
+        const dt = (now - playStartRef.current) / 1000;
+        playStartRef.current = now;
+        elapsedRef.current += dt;
+        elapsedSpring.set(elapsedRef.current);
+        if (now - lastTimeUpdateRef.current > 250) {
+          lastTimeUpdateRef.current = now;
+          setCurrentTime(elapsedRef.current);
+        }
+        playRafRef.current = requestAnimationFrame(tick);
+      };
+      playRafRef.current = requestAnimationFrame(tick);
+      return () => cancelAnimationFrame(playRafRef.current);
+    }
+  }, [isPlaying, elapsedSpring]);
+
+  // ── Unified play/pause (just state — aurora derived above) ────────────────
+  const play = useCallback(() => setIsPlaying(true), []);
+  const togglePlay = useCallback(() => setIsPlaying((prev) => !prev), []);
+
+  const resetElapsed = useCallback(() => {
+    elapsedRef.current = 0;
+    elapsedSpring.set(0);
+    setCurrentTime(0);
+    // Reset RAF anchor so next tick doesn't accumulate stale dt
+    playStartRef.current = performance.now();
+  }, [elapsedSpring]);
+
+  const seek = useCallback(
+    (time: number) => {
+      elapsedRef.current = time;
+      elapsedSpring.set(time);
+      setCurrentTime(time);
+      playStartRef.current = performance.now();
+    },
+    [elapsedSpring],
+  );
 
   // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
@@ -224,31 +288,30 @@ export function VinylGrid() {
     }
   }, [maxOffset, offsetX, offsetY]);
 
+  /** Enter player mode: set progress to 1, update bg. Does NOT start playback. */
   const enterPlayerMode = useCallback(
     (discIndex: number) => {
-      setPlayerMode(true);
-      setIsPlaying(true);
       setActiveDisc(discIndex);
-      playerSpring.start(1);
+      progressRef.current = 1;
+      savedProgressRef.current = 1;
+      progress.start(1);
       bgApi.start({ color: getVinylColor(discIndex) });
     },
-    [playerSpring, bgApi],
+    [progress, bgApi],
   );
 
+  /** Exit player mode: progress → 0.66, reset bg. Playback continues. */
   const exitPlayerMode = useCallback(() => {
-    console.log("[DEBUG] exitPlayerMode called");
-    setPlayerMode(false);
-    playerSpring.start(0);
+    progressRef.current = 0.66;
+    savedProgressRef.current = 0.66;
+    progress.start(0.66);
     bgApi.start({ color: "rgb(0,0,0)" });
-  }, [playerSpring, bgApi]);
+  }, [progress, bgApi]);
 
   const handleMinimize = useCallback(() => {
-    console.log("[DEBUG] handleMinimize called");
-    console.trace("[DEBUG] handleMinimize stack");
     progressRef.current = 0;
     savedProgressRef.current = 0;
     progress.start(0);
-    setAtLevel1(true);
   }, [progress]);
 
   const handleMaximize = useCallback(() => {
@@ -257,22 +320,13 @@ export function VinylGrid() {
         ? activeDisc
         : findNearestDisc(coords, offsetRef.current[0], offsetRef.current[1]);
     panToDisc(target);
-    progressRef.current = 1;
-    savedProgressRef.current = 1;
-    progress.start(1);
     enterPlayerMode(target);
-    setAtLevel1(false);
-  }, [activeDisc, coords, panToDisc, progress, enterPlayerMode]);
+    play();
+  }, [activeDisc, coords, panToDisc, enterPlayerMode, play]);
 
   const handleClosePlayer = useCallback(() => {
-    console.log("[DEBUG] handleClosePlayer called");
-    console.trace("[DEBUG] handleClosePlayer stack");
     exitPlayerMode();
-    progressRef.current = 0.66;
-    savedProgressRef.current = 0.66;
-    progress.start(0.66);
-    setAtLevel1(false);
-  }, [exitPlayerMode, progress]);
+  }, [exitPlayerMode]);
 
   // ── Snap timer ─────────────────────────────────────────────────────────────
   const scheduleSnap = useCallback(() => {
@@ -280,57 +334,61 @@ export function VinylGrid() {
     snapTimerRef.current = window.setTimeout(() => {
       const snapped = snapToLevel(progressRef.current);
       progressRef.current = snapped;
+      savedProgressRef.current = snapped;
       progress.start(snapped);
 
       if (snapped >= 1) {
-        // Enter player mode with the active disc (or nearest if none)
         const target =
-          activeDisc >= 0
-            ? activeDisc
+          activeDiscRef.current >= 0
+            ? activeDiscRef.current
             : findNearestDisc(
                 coords,
                 offsetRef.current[0],
                 offsetRef.current[1],
               );
         panToDisc(target);
-        enterPlayerMode(target);
+        setActiveDisc(target);
+        bgApi.start({ color: getVinylColor(target) });
+        play();
       }
-      setAtLevel1(snapped === 0);
     }, 150);
-  }, [progress, enterPlayerMode, activeDisc, coords, panToDisc]);
+  }, [progress, coords, panToDisc, bgApi, play]);
 
   // ── Click handler ──────────────────────────────────────────────────────────
   const handleDiscClick = useCallback(
     (index: number) => {
+      const currentActive = activeDiscRef.current;
       const isLevel1 = progressRef.current === 0;
 
       if (isLevel1) {
         // Level 1 browse: click → select disc, start playing, jump to level 3
         panToDisc(index);
         setActiveDisc(index);
-        setIsPlaying(true);
+        resetElapsed();
+        play();
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
         progress.start(0.66);
-        setAtLevel1(false);
         return;
       }
 
-      if (index === activeDisc) {
+      if (index === currentActive) {
         // Click the active disc → toggle play/pause
-        setIsPlaying((p) => !p);
+        togglePlay();
         return;
       }
 
-      // Click a different disc → switch to it, start playing
+      // Click a different disc → switch to it, start playing from 0
       panToDisc(index);
       setActiveDisc(index);
-      setIsPlaying(true);
-      if (playerMode) {
+      resetElapsed();
+      play();
+      // If in player mode (progress ≈ 1), update bg color
+      if (progressRef.current >= 1) {
         bgApi.start({ color: getVinylColor(index) });
       }
     },
-    [activeDisc, panToDisc, progress, playerMode, bgApi],
+    [panToDisc, progress, bgApi, play, togglePlay, resetElapsed],
   );
 
   // ── Prev / Next ────────────────────────────────────────────────────────────
@@ -338,17 +396,19 @@ export function VinylGrid() {
     const prev = (activeDisc - 1 + coords.length) % coords.length;
     panToDisc(prev);
     setActiveDisc(prev);
-    setIsPlaying(true);
+    resetElapsed();
+    play();
     bgApi.start({ color: getVinylColor(prev) });
-  }, [activeDisc, coords, panToDisc, bgApi]);
+  }, [activeDisc, coords, panToDisc, bgApi, play, resetElapsed]);
 
   const handleNext = useCallback(() => {
     const next = (activeDisc + 1) % coords.length;
     panToDisc(next);
     setActiveDisc(next);
-    setIsPlaying(true);
+    resetElapsed();
+    play();
     bgApi.start({ color: getVinylColor(next) });
-  }, [activeDisc, coords, panToDisc, bgApi]);
+  }, [activeDisc, coords, panToDisc, bgApi, play, resetElapsed]);
 
   // ── Mouse handlers (desktop: drag + click via hoveredDiscIndex) ────────────
   const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -374,58 +434,33 @@ export function VinylGrid() {
         const dy = evt.clientY - mouseStartRef.current.y;
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isDraggingRef.current = true;
-          // Only shrink on confirmed drag, not on click
-          if (
-            savedProgressRef.current > 0 &&
-            savedProgressRef.current !== 0.66
-          ) {
+          // Dragging in player mode → shrink to 0.66
+          if (savedProgressRef.current >= 1) {
             progress.start(0.66);
-          }
-          if (playerMode) {
-            playerSpring.start(0);
             bgApi.start({ color: "rgb(0,0,0)" });
           }
         }
       }
 
       if (isDraggingRef.current) {
-        offsetRef.current[0] += evt.movementX;
-        offsetRef.current[1] += evt.movementY;
+        const speedMult = progressRef.current === 0 ? 2.5 : 1;
+        offsetRef.current[0] += (evt.movementX * speedMult) / viewportScale;
+        offsetRef.current[1] += (evt.movementY * speedMult) / viewportScale;
         offsetX.start(offsetRef.current[0]);
         offsetY.start(offsetRef.current[1]);
         updateCenter();
       }
     },
-    [
-      isHold,
-      offsetX,
-      offsetY,
-      updateCenter,
-      progress,
-      playerMode,
-      playerSpring,
-      bgApi,
-    ],
+    [isHold, offsetX, offsetY, updateCenter, progress, bgApi, viewportScale],
   );
 
   const handleMouseUp = useCallback(
     (_evt: React.MouseEvent) => {
-      console.log(
-        "[DEBUG] handleMouseUp fired, isDragging:",
-        isDraggingRef.current,
-        "hoveredDiscIndex:",
-        hoveredDiscIndex,
-      );
       setIsHold(false);
 
       if (!isDraggingRef.current) {
         // Click — use hovered disc from mouseenter/leave
         if (hoveredDiscIndex >= 0) {
-          console.log(
-            "[DEBUG] handleMouseUp: calling handleDiscClick(",
-            hoveredDiscIndex,
-            ")",
-          );
           handleDiscClick(hoveredDiscIndex);
         }
         // Restore progress if changed on mouseDown
@@ -433,15 +468,10 @@ export function VinylGrid() {
           progressRef.current !== savedProgressRef.current &&
           savedProgressRef.current > 0
         ) {
-          console.log(
-            "[DEBUG] handleMouseUp: restoring progress to",
-            savedProgressRef.current,
-          );
           progressRef.current = savedProgressRef.current;
           progress.start(savedProgressRef.current);
           if (savedProgressRef.current >= 1 && activeDisc >= 0) {
-            console.log("[DEBUG] handleMouseUp: re-entering playerMode");
-            enterPlayerMode(activeDisc);
+            bgApi.start({ color: getVinylColor(activeDisc) });
           }
         }
         return;
@@ -460,7 +490,7 @@ export function VinylGrid() {
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
         if (savedProgressRef.current >= 1) {
-          enterPlayerMode(snapped);
+          bgApi.start({ color: getVinylColor(snapped) });
         }
       }
     },
@@ -469,7 +499,7 @@ export function VinylGrid() {
       clampOffset,
       updateCenter,
       progress,
-      enterPlayerMode,
+      bgApi,
       activeDisc,
       hoveredDiscIndex,
       handleDiscClick,
@@ -481,12 +511,10 @@ export function VinylGrid() {
     (evt: React.WheelEvent) => {
       evt.preventDefault();
 
-      if (playerMode) {
+      // In player mode (progress=1), scroll down exits
+      if (progressRef.current >= 1) {
         if (evt.deltaY > 0) {
           exitPlayerMode();
-          progressRef.current = 0.66;
-          savedProgressRef.current = 0.66;
-          progress.start(0.66);
         }
         return;
       }
@@ -512,7 +540,6 @@ export function VinylGrid() {
     },
     [
       progress,
-      playerMode,
       exitPlayerMode,
       scheduleSnap,
       activeDisc,
@@ -529,45 +556,36 @@ export function VinylGrid() {
   const isTouchDraggingRef = useRef(false);
   const touchedDiscRef = useRef(-1);
 
-  const handleTouchStart = useCallback(
-    (evt: React.TouchEvent) => {
-      if (evt.touches.length === 2) {
-        // Pinch start
-        const dx = evt.touches[1].clientX - evt.touches[0].clientX;
-        const dy = evt.touches[1].clientY - evt.touches[0].clientY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        pinchRef.current = {
-          startDist: dist,
-          startProgress: progressRef.current,
-        };
-        return;
-      }
+  const handleTouchStart = useCallback((evt: React.TouchEvent) => {
+    if (evt.touches.length === 2) {
+      // Pinch start
+      const dx = evt.touches[1].clientX - evt.touches[0].clientX;
+      const dy = evt.touches[1].clientY - evt.touches[0].clientY;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      pinchRef.current = {
+        startDist: dist,
+        startProgress: progressRef.current,
+      };
+      return;
+    }
 
-      // Single touch — record start for drag threshold
-      const touch = evt.touches[0];
-      touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-      isTouchDraggingRef.current = false;
-      setIsHold(true);
+    // Single touch — record start for drag threshold
+    const touch = evt.touches[0];
+    touchStartRef.current = { x: touch.clientX, y: touch.clientY };
+    isTouchDraggingRef.current = false;
+    setIsHold(true);
 
-      // Identify tapped disc via target DOM
-      const el = (evt.target as HTMLElement).closest("[data-disc-index]");
-      touchedDiscRef.current = el
-        ? Number.parseInt(el.getAttribute("data-disc-index") ?? "-1", 10)
-        : -1;
+    // Identify tapped disc via target DOM
+    const el = (evt.target as HTMLElement).closest("[data-disc-index]");
+    touchedDiscRef.current = el
+      ? Number.parseInt(el.getAttribute("data-disc-index") ?? "-1", 10)
+      : -1;
 
-      if (progressRef.current > 0) {
-        savedProgressRef.current = progressRef.current;
-        if (progressRef.current !== 0.66) {
-          progress.start(0.66);
-        }
-        if (playerMode) {
-          playerSpring.start(0);
-          bgApi.start({ color: "rgb(0,0,0)" });
-        }
-      }
-    },
-    [progress, playerMode, playerSpring, bgApi],
-  );
+    // Save progress but DON'T shrink yet — wait for drag confirmation
+    if (progressRef.current > 0) {
+      savedProgressRef.current = progressRef.current;
+    }
+  }, []);
 
   const handleTouchMove = useCallback(
     (evt: React.TouchEvent) => {
@@ -608,6 +626,11 @@ export function VinylGrid() {
         const dy = touch.clientY - touchStartRef.current.y;
         if (Math.sqrt(dx * dx + dy * dy) >= DRAG_THRESHOLD) {
           isTouchDraggingRef.current = true;
+          // Dragging from player mode → shrink to 0.66
+          if (savedProgressRef.current >= 1) {
+            progress.start(0.66);
+            bgApi.start({ color: "rgb(0,0,0)" });
+          }
         }
       }
 
@@ -615,8 +638,11 @@ export function VinylGrid() {
         const prevX = touchStartRef.current.x;
         const prevY = touchStartRef.current.y;
         touchStartRef.current = { x: touch.clientX, y: touch.clientY };
-        offsetRef.current[0] += touch.clientX - prevX;
-        offsetRef.current[1] += touch.clientY - prevY;
+        const speedMult = progressRef.current === 0 ? 2.5 : 1;
+        offsetRef.current[0] +=
+          ((touch.clientX - prevX) * speedMult) / viewportScale;
+        offsetRef.current[1] +=
+          ((touch.clientY - prevY) * speedMult) / viewportScale;
         offsetX.start(offsetRef.current[0]);
         offsetY.start(offsetRef.current[1]);
         updateCenter();
@@ -630,6 +656,8 @@ export function VinylGrid() {
       offsetX,
       offsetY,
       updateCenter,
+      viewportScale,
+      bgApi,
     ],
   );
 
@@ -657,7 +685,7 @@ export function VinylGrid() {
           progressRef.current = savedProgressRef.current;
           progress.start(savedProgressRef.current);
           if (savedProgressRef.current >= 1 && activeDisc >= 0) {
-            enterPlayerMode(activeDisc);
+            bgApi.start({ color: getVinylColor(activeDisc) });
           }
         }
         return;
@@ -675,7 +703,7 @@ export function VinylGrid() {
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
         if (savedProgressRef.current >= 1) {
-          enterPlayerMode(snapped);
+          bgApi.start({ color: getVinylColor(snapped) });
         }
       }
     },
@@ -685,7 +713,7 @@ export function VinylGrid() {
       clampOffset,
       updateCenter,
       progress,
-      enterPlayerMode,
+      bgApi,
       activeDisc,
       handleDiscClick,
     ],
@@ -701,10 +729,14 @@ export function VinylGrid() {
         style={{ backgroundColor: bgSpring.color }}
       />
 
-      {/* Aurora flowing light effect - visible in player mode */}
-      <AuroraBackground visible={playerSpring} color={bgSpring.color} />
+      {/* Aurora — visible when progress ≈ 1 AND playing */}
+      <AuroraBackground
+        progress={progress}
+        isPlaying={isPlaying}
+        color={bgSpring.color}
+      />
 
-      {/* Grid layer — all drag/click/zoom gestures live here */}
+      {/* Grid layer */}
       <div
         className="relative w-full h-full origin-center"
         style={{ transform: `scale(${viewportScale})` }}
@@ -722,11 +754,11 @@ export function VinylGrid() {
             coord={coord}
             offset={[offsetX, offsetY]}
             progress={progress}
-            playerMode={playerSpring}
+            elapsed={elapsedSpring}
             index={idx}
-            isPlaying={isPlaying}
             isCenterDisc={idx === centerDiscIndex}
-            isPlayingDisc={idx === activeDisc}
+            isActiveDisc={idx === activeDisc}
+            isPlaying={isPlaying}
             onHover={setHoveredDiscIndex}
           />
         ))}
@@ -734,20 +766,40 @@ export function VinylGrid() {
 
       <ModeButtons
         progress={progress}
-        playerMode={playerSpring}
-        isPlayerMode={playerMode}
         onMinimize={handleMinimize}
         onMaximize={handleMaximize}
         onClosePlayer={handleClosePlayer}
       />
 
       <TransportControls
-        visible={playerSpring}
+        progress={progress}
+        elapsed={elapsedSpring}
+        duration={currentSong?.duration}
         isPlaying={isPlaying}
-        onPlayPause={() => setIsPlaying((p) => !p)}
+        onPlayPause={togglePlay}
         onPrev={handlePrev}
         onNext={handleNext}
+        onSeek={seek}
+        onScrubChange={setScrubPos}
       />
+
+      {/* Song info */}
+      {currentSong && (
+        <SongInfo
+          song={currentSong}
+          isPlayerMode={progressRef.current >= 0.9}
+        />
+      )}
+
+      {/* Synced lyrics */}
+      {currentSong && (
+        <Lyrics
+          lyrics={currentSong.lyrics}
+          currentTime={currentTime}
+          isPlaying={isPlaying}
+          progress={progress}
+        />
+      )}
 
       <ZoomIndicator progress={progress} />
 
@@ -755,7 +807,8 @@ export function VinylGrid() {
         isPlaying={isPlaying}
         hoveredDiscIndex={hoveredDiscIndex}
         centerDiscIndex={centerDiscIndex}
-        compact={atLevel1}
+        compact={progressRef.current === 0}
+        scrubPos={scrubPos}
       />
     </div>
   );

@@ -2,6 +2,13 @@
 @plugin "daisyui";
 
 @theme inline {
+  /* Font family tokens */
+  --font-display: "Playfair Display", "Noto Serif SC", "Noto Serif JP", serif;
+  --font-body: "Inter", system-ui, sans-serif;
+  --font-lyric: "Crimson Pro", "Noto Serif SC", "Noto Serif JP", serif;
+  --font-cjk-sc: "Noto Serif SC", "Crimson Pro", serif;
+  --font-cjk-jp: "Noto Serif JP", "Crimson Pro", serif;
+
   --animate-aurora: aurora 60s linear infinite;
   @keyframes aurora {
     from {
@@ -61,4 +68,45 @@
   background-attachment: fixed;
   mix-blend-mode: difference;
   animation: aurora 60s linear infinite;
+}
+
+/* Active lyric line glow */
+.lyric-active {
+  text-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
+}
+
+/* Lyrics fade mask: center visible, all edges fade to transparent */
+.lyrics-fade-mask {
+  -webkit-mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 20%,
+      black 80%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+  -webkit-mask-composite: source-in;
+  mask-image:
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      black 20%,
+      black 80%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to right,
+      transparent 0%,
+      black 10%,
+      black 90%,
+      transparent 100%
+    );
+  mask-composite: intersect;
 }
