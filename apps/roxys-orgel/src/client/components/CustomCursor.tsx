@@ -221,25 +221,47 @@ export function CustomCursor({
         });
       }
     };
-    // Use mouseleave on documentElement (not document) - more reliable
+    // Track whether we recently interacted (click) – layout reflow can
+    // fire spurious mouseleave events at the viewport boundary.
+    let recentClick = false;
+    let recentClickTimer: ReturnType<typeof setTimeout> | null = null;
+    const onDocClick = () => {
+      recentClick = true;
+      if (recentClickTimer) clearTimeout(recentClickTimer);
+      recentClickTimer = setTimeout(() => { recentClick = false; }, 500);
+    };
+    // Use document mouseleave (fires when pointer leaves the document)
     const onLeave = (e: MouseEvent) => {
-      // Only hide if mouse truly left the viewport bounds
       const { clientX: x, clientY: y } = e;
-      if (
-        x <= 0 ||
-        y <= 0 ||
-        x >= window.innerWidth ||
-        y >= window.innerHeight
-      ) {
-        mouseInPageRef.current = false;
-        setMouseInPage(false);
-        cursorLog("mouseInPage → FALSE (documentElement mouseleave)", {
-          x,
-          y,
-          winW: window.innerWidth,
-          winH: window.innerHeight,
+      // If the cursor is right at the viewport edge AND we recently clicked,
+      // this is likely a layout-reflow ghost event — ignore it.
+      const atEdge =
+        x <= 0 || y <= 0 || x >= window.innerWidth - 1 || y >= window.innerHeight - 1;
+      if (atEdge && recentClick) {
+        cursorLog("mouseInPage: SUPPRESSED leave (recent click + edge)", {
+          x, y, winW: window.innerWidth, winH: window.innerHeight,
         });
+        return;
       }
+      // Double-check: schedule a verification. If the next mousemove arrives
+      // within 100ms, the mouse is still in the page.
+      const verifyTimer = setTimeout(() => {
+        // If still no mousemove restored it, commit the leave
+        if (mouseInPageRef.current) {
+          mouseInPageRef.current = false;
+          setMouseInPage(false);
+          cursorLog("mouseInPage → FALSE (verified leave)", {
+            x, y, winW: window.innerWidth, winH: window.innerHeight,
+          });
+        }
+      }, 80);
+      // If mouse moves before verification, cancel
+      const cancelVerify = () => {
+        clearTimeout(verifyTimer);
+        window.removeEventListener("mousemove", cancelVerify);
+        cursorLog("mouseInPage: leave CANCELLED (mousemove arrived)");
+      };
+      window.addEventListener("mousemove", cancelVerify, { once: true });
     };
     const onVisChange = () => {
       if (document.hidden) {
@@ -249,13 +271,16 @@ export function CustomCursor({
       }
     };
     window.addEventListener("mousemove", onMove);
+    document.addEventListener("click", onDocClick, true);
     document.documentElement.addEventListener("mouseleave", onLeave);
     document.addEventListener("visibilitychange", onVisChange);
     return () => {
       window.removeEventListener("mousemove", onMove);
+      document.removeEventListener("click", onDocClick, true);
       document.documentElement.removeEventListener("mouseleave", onLeave);
       document.removeEventListener("visibilitychange", onVisChange);
       cancelAnimationFrame(rafRef.current);
+      clearTimeout(recentClickTimer!);
     };
   }, []);
 
