@@ -206,13 +206,24 @@ export function CustomCursor({
 
   // ── Mouse tracking + page visibility ────────────────────────────────────
   useEffect(() => {
+    // We track mouse presence via mousemove. If no move arrives for a while
+    // after a genuine document-exit event, we hide. This avoids false positives
+    // from layout reflows and spring animations that fire spurious mouseleave.
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearHide = () => {
+      if (hideTimer !== null) {
+        clearTimeout(hideTimer);
+        hideTimer = null;
+      }
+    };
+
     const onMove = (e: MouseEvent) => {
       posRef.current = { x: e.clientX, y: e.clientY };
-      // Any mousemove means cursor is in page
+      clearHide();
       if (!mouseInPageRef.current) {
         mouseInPageRef.current = true;
         setMouseInPage(true);
-        cursorLog("mouseInPage → TRUE (from mousemove)");
+        cursorLog("mouseInPage → TRUE (mousemove)");
       }
       if (!rafRef.current) {
         rafRef.current = requestAnimationFrame(() => {
@@ -221,66 +232,43 @@ export function CustomCursor({
         });
       }
     };
-    // Track whether we recently interacted (click) – layout reflow can
-    // fire spurious mouseleave events at the viewport boundary.
-    let recentClick = false;
-    let recentClickTimer: ReturnType<typeof setTimeout> | null = null;
-    const onDocClick = () => {
-      recentClick = true;
-      if (recentClickTimer) clearTimeout(recentClickTimer);
-      recentClickTimer = setTimeout(() => { recentClick = false; }, 500);
-    };
-    // Use document mouseleave (fires when pointer leaves the document)
-    const onLeave = (e: MouseEvent) => {
-      const { clientX: x, clientY: y } = e;
-      // If the cursor is right at the viewport edge AND we recently clicked,
-      // this is likely a layout-reflow ghost event — ignore it.
-      const atEdge =
-        x <= 0 || y <= 0 || x >= window.innerWidth - 1 || y >= window.innerHeight - 1;
-      if (atEdge && recentClick) {
-        cursorLog("mouseInPage: SUPPRESSED leave (recent click + edge)", {
-          x, y, winW: window.innerWidth, winH: window.innerHeight,
+
+    // When the pointer exits the document, schedule a hide after a short
+    // grace period. If a mousemove arrives before the timer (common during
+    // layout reflows), the hide is cancelled.
+    const onOut = (e: MouseEvent) => {
+      // mouseout with relatedTarget===null means pointer left the document
+      if (e.relatedTarget !== null) return;
+      clearHide();
+      hideTimer = setTimeout(() => {
+        hideTimer = null;
+        mouseInPageRef.current = false;
+        setMouseInPage(false);
+        cursorLog("mouseInPage → FALSE (confirmed exit)", {
+          x: e.clientX,
+          y: e.clientY,
         });
-        return;
-      }
-      // Double-check: schedule a verification. If the next mousemove arrives
-      // within 100ms, the mouse is still in the page.
-      const verifyTimer = setTimeout(() => {
-        // If still no mousemove restored it, commit the leave
-        if (mouseInPageRef.current) {
-          mouseInPageRef.current = false;
-          setMouseInPage(false);
-          cursorLog("mouseInPage → FALSE (verified leave)", {
-            x, y, winW: window.innerWidth, winH: window.innerHeight,
-          });
-        }
-      }, 80);
-      // If mouse moves before verification, cancel
-      const cancelVerify = () => {
-        clearTimeout(verifyTimer);
-        window.removeEventListener("mousemove", cancelVerify);
-        cursorLog("mouseInPage: leave CANCELLED (mousemove arrived)");
-      };
-      window.addEventListener("mousemove", cancelVerify, { once: true });
+      }, 150);
     };
+
     const onVisChange = () => {
       if (document.hidden) {
+        clearHide();
         mouseInPageRef.current = false;
         setMouseInPage(false);
         cursorLog("mouseInPage → FALSE (page hidden)");
       }
     };
+
     window.addEventListener("mousemove", onMove);
-    document.addEventListener("click", onDocClick, true);
-    document.documentElement.addEventListener("mouseleave", onLeave);
+    document.addEventListener("mouseout", onOut);
     document.addEventListener("visibilitychange", onVisChange);
     return () => {
       window.removeEventListener("mousemove", onMove);
-      document.removeEventListener("click", onDocClick, true);
-      document.documentElement.removeEventListener("mouseleave", onLeave);
+      document.removeEventListener("mouseout", onOut);
       document.removeEventListener("visibilitychange", onVisChange);
       cancelAnimationFrame(rafRef.current);
-      clearTimeout(recentClickTimer!);
+      clearHide();
     };
   }, []);
 
