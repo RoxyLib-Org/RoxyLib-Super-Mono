@@ -5,8 +5,8 @@ interface AuroraBackgroundProps {
   progress: SpringValue<number>;
   /** Whether audio is currently playing (drives CSS transition) */
   isPlaying: boolean;
-  /** Animated color string from the disc palette */
-  color: SpringValue<string>;
+  /** Background color string (static) */
+  color: string;
 }
 
 /**
@@ -37,7 +37,7 @@ export function AuroraBackground({
             // CSS transition handles play/pause fade — no spring/effect needed
             opacity: isPlaying ? 1 : 0,
             transition: "opacity 0.4s ease",
-            "--aurora-color": color.to((c) => c),
+            "--aurora-color": color,
           } as React.CSSProperties
         }
       />

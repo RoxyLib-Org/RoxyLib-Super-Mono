@@ -5,6 +5,7 @@ import { audioRoute } from "@/server/apis/audio";
 import { coverRoute } from "@/server/apis/cover";
 import { debugRoute } from "@/server/apis/debug";
 import fileRoute from "@/server/apis/fileRoute";
+import { ogCardRoute } from "@/server/apis/ogCards";
 import { createTRPCContext } from "@/server/trpc/context";
 import { appRouter } from "@/server/trpc/router";
 import type { HonoCtxEnv } from "@/shared/types";
@@ -15,7 +16,7 @@ export const app = new Hono<HonoCtxEnv>();
 app.route("/", audioRoute);
 app.route("/", coverRoute);
 app.route("/", debugRoute);
-
+app.route("/", ogCardRoute);
 
 // tRPC handler — match /api/trpc (batch) and /api/trpc/* (single)
 const trpcHandler = trpcServer({

@@ -351,6 +351,28 @@ export function CustomCursor({
     scrubPos,
   });
 
+  // DEBUG: trace cursor disappearance
+  const prevVisRef = useRef(true);
+  if (visible && !prevVisRef.current) {
+    console.log("[Cursor] RESTORED", { mouseInPage, isTouch });
+  }
+  if (!visible && prevVisRef.current) {
+    console.warn("[Cursor] VANISHED!", {
+      mouseInPage,
+      isTouch,
+      pos,
+      snapEl: effectiveSnapEl?.tagName ?? null,
+    });
+    console.trace("[Cursor] vanish trace");
+  }
+  prevVisRef.current = visible;
+  if (visible && mode.size <= 0) {
+    console.warn("[Cursor] SIZE ZERO!", {
+      mode,
+      effectiveSnapEl: effectiveSnapEl?.tagName ?? null,
+    });
+  }
+
   // ── Springs ───────────────────────────────────────────────────────────────
   const isSnapped = mode.kind === "snap";
   const targetX = isSnapped ? mode.x : pos.x;

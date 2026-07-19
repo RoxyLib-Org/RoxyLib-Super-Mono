@@ -29,6 +29,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@cloudflare/puppeteer": "^1.1.0",
     "@cloudflare/vite-plugin": "^1.45.1",
     "@tailwindcss/vite": "^4.2.2",
     "@tanstack/router-plugin": "^1.166.14",
