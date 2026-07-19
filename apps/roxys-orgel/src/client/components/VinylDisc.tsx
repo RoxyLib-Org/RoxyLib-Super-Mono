@@ -75,6 +75,8 @@ interface VinylDiscProps {
   /** Global playback state */
   isPlaying: boolean;
   onHover: (index: number) => void;
+  /** Real cover art URL; falls back to placeholder when null */
+  coverUrl?: string | null;
 }
 
 /** One full disc rotation every 8 seconds of playback */
@@ -90,6 +92,7 @@ export function VinylDisc({
   isActiveDisc,
   isPlaying,
   onHover,
+  coverUrl: coverUrlProp,
 }: VinylDiscProps) {
   // ── Rotation derived from elapsed time ────────────────────────────────────
   // Active disc: rotation = (elapsed / period) * 360, continuously synced.
@@ -151,7 +154,7 @@ export function VinylDisc({
     [x, y],
   );
 
-  const coverUrl = getCoverUrl(index);
+  const coverUrl = coverUrlProp ?? getCoverUrl(index);
   const [vinylBase, vinylDark] = getVinylColors(index);
   const maxVisibleDist = 800;
 

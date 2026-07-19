@@ -13,6 +13,6 @@
     "hono": "^4.12.8"
   },
   "devDependencies": {
-    "@cloudflare/vite-plugin": "^1.43.0"
+    "@cloudflare/vite-plugin": "^1.45.1"
   }
 }

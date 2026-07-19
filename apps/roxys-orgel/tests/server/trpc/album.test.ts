@@ -7,8 +7,8 @@ function parseInput(proc: { _def: { inputs: unknown[] } }, data: unknown) {
 }
 
 describe("albumRouter", () => {
-  it("album.list input schema accepts empty object", () => {
-    expect(() => parseInput(albumRouter.list, {})).not.toThrow();
+  it("album.list has no input schema (no arguments)", () => {
+    expect(albumRouter.list._def.inputs).toHaveLength(0);
   });
 
   it("album.byId input schema requires id string", () => {

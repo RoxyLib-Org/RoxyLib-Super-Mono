@@ -1,120 +1,93 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { Hono } from "hono";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { getPlatformProxy } from "wrangler";
 import type { HonoCtxEnv } from "@/shared/types";
+import { audioRoute } from "@/server/apis/audio";
 import { encodeId } from "@/server/utils/r2-scanner";
 
-const { audioRoute } = await import("@/server/apis/audio");
-
-const mockR2Head = vi.fn();
-const mockR2Get = vi.fn();
-
-const TEST_KEY = "music/s1.flac";
+const TEST_KEY = "S1/Test Album - Test Artist/01. Test Song.flac";
 const TEST_ENCODED = encodeId(TEST_KEY);
+const MISSING_KEY = "S1/nonexistent/99. Ghost.flac";
+const MISSING_ENCODED = encodeId(MISSING_KEY);
 
-function buildEnv(overrides: {
-  headResult?: unknown;
-  getResult?: unknown;
-}): CloudflareBindings {
-  mockR2Head.mockReset();
-  mockR2Get.mockReset();
+let env: CloudflareBindings;
+let dispose: () => Promise<void>;
 
-  mockR2Head.mockResolvedValue(
-    "headResult" in overrides
-      ? overrides.headResult
-      : {
-          size: 1024,
-          httpMetadata: { contentType: "audio/flac" },
-        },
+beforeAll(async () => {
+  const proxy = await getPlatformProxy<CloudflareBindings>({
+    configPath: "apps/roxys-orgel/wrangler.toml",
+  });
+  env = proxy.env;
+  dispose = proxy.dispose;
+
+  // Seed a 1024-byte test file into local R2
+  const fixture = readFileSync(
+    resolve(__dirname, "../../fixtures/test-audio.flac"),
   );
-  mockR2Get.mockResolvedValue(
-    "getResult" in overrides
-      ? overrides.getResult
-      : {
-          body: new ReadableStream(),
-          httpMetadata: { contentType: "audio/flac" },
-          size: 1024,
-        },
-  );
+  await env.R2.put(TEST_KEY, fixture, {
+    httpMetadata: { contentType: "audio/flac" },
+  });
+});
 
-  return {
-    DB: {} as D1Database,
-    R2: { head: mockR2Head, get: mockR2Get } as unknown as R2Bucket,
-    KV: {} as KVNamespace,
-  };
-}
+afterAll(async () => {
+  // Clean up seeded object
+  await env.R2.delete(TEST_KEY);
+  await dispose();
+});
 
 const app = new Hono<HonoCtxEnv>().route("/", audioRoute);
 
 describe("GET /api/audio/:encodedKey", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-  });
-
-  it("returns 404 when R2 head returns null (file missing)", async () => {
-    const res = await app.request(
-      `/api/audio/${TEST_ENCODED}`,
-      {},
-      buildEnv({ headResult: null }),
-    );
+  it("returns 404 when file does not exist in R2", async () => {
+    const res = await app.request(`/api/audio/${MISSING_ENCODED}`, {}, env);
     expect(res.status).toBe(404);
   });
 
   it("returns 200 with Content-Length and Accept-Ranges when no Range header", async () => {
-    const res = await app.request(
-      `/api/audio/${TEST_ENCODED}`,
-      {},
-      buildEnv({}),
-    );
+    const res = await app.request(`/api/audio/${TEST_ENCODED}`, {}, env);
     expect(res.status).toBe(200);
     expect(res.headers.get("Accept-Ranges")).toBe("bytes");
     expect(res.headers.get("Content-Length")).toBe("1024");
-    expect(mockR2Head).toHaveBeenCalledWith(TEST_KEY);
-    expect(mockR2Get).toHaveBeenCalledWith(TEST_KEY);
   });
 
   it("returns 206 with Content-Range for valid Range request", async () => {
     const res = await app.request(
       `/api/audio/${TEST_ENCODED}`,
       { headers: { Range: "bytes=0-99" } },
-      buildEnv({}),
+      env,
     );
     expect(res.status).toBe(206);
     expect(res.headers.get("Content-Range")).toBe("bytes 0-99/1024");
     expect(res.headers.get("Content-Length")).toBe("100");
-    expect(mockR2Get).toHaveBeenCalledWith(TEST_KEY, {
-      range: { offset: 0, length: 100 },
-    });
   });
 
   it("returns 206 for open-ended Range (bytes=500-)", async () => {
     const res = await app.request(
       `/api/audio/${TEST_ENCODED}`,
       { headers: { Range: "bytes=500-" } },
-      buildEnv({}),
+      env,
     );
     expect(res.status).toBe(206);
     expect(res.headers.get("Content-Range")).toBe("bytes 500-1023/1024");
     expect(res.headers.get("Content-Length")).toBe("524");
-    expect(mockR2Get).toHaveBeenCalledWith(TEST_KEY, {
-      range: { offset: 500, length: 524 },
-    });
   });
 
   it("returns 416 for unsatisfiable Range (start >= size)", async () => {
     const res = await app.request(
       `/api/audio/${TEST_ENCODED}`,
       { headers: { Range: "bytes=2000-3000" } },
-      buildEnv({}),
+      env,
     );
     expect(res.status).toBe(416);
-    expect(mockR2Get).not.toHaveBeenCalled();
   });
 
   it("returns 400 for malformed Range header", async () => {
     const res = await app.request(
       `/api/audio/${TEST_ENCODED}`,
       { headers: { Range: "invalid" } },
-      buildEnv({}),
+      env,
     );
     expect(res.status).toBe(400);
   });

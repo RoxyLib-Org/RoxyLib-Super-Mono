@@ -38,7 +38,10 @@ export function TransportControls({
   onSeek,
   onScrubChange,
 }: TransportControlsProps) {
-  const totalDuration = duration ?? DEFAULT_DURATION;
+  const totalDuration =
+    duration != null && Number.isFinite(duration) && duration > 0
+      ? duration
+      : DEFAULT_DURATION;
   const trackRef = useRef<HTMLDivElement>(null);
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [scrubFraction, setScrubFraction] = useState(0);

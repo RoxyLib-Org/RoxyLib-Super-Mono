@@ -185,11 +185,12 @@ export function CustomCursor({
   const mouseInPageRef = useRef(true);
   const [isTouch, setIsTouch] = useState(false);
   const [snapEl, setSnapEl] = useState<HTMLElement | null>(null);
-  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 640);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   // ── Responsive breakpoint ─────────────────────────────────────────────────
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
+    setIsDesktop(mq.matches);
     const onChange = () => setIsDesktop(mq.matches);
     mq.addEventListener("change", onChange);
     return () => mq.removeEventListener("change", onChange);
@@ -315,18 +316,38 @@ export function CustomCursor({
   }, []);
 
   // ── Derive CursorMode ─────────────────────────────────────────────────────
+  // Auto-clear snapEl if the element is no longer visible/interactive
+  // (e.g. close button fades out after click via pointer-events:none + opacity:0)
+  const effectiveSnapEl = (() => {
+    if (!snapEl) return null;
+    if (!snapEl.isConnected) {
+      setSnapEl(null);
+      return null;
+    }
+    const style = getComputedStyle(snapEl);
+    if (
+      style.pointerEvents === "none" ||
+      style.visibility === "hidden" ||
+      style.display === "none" ||
+      Number.parseFloat(style.opacity) < 0.1
+    ) {
+      setSnapEl(null);
+      return null;
+    }
+    return snapEl;
+  })();
+
   const visible = mouseInPage && !isTouch;
   const isHoveringDisc = hoveredDiscIndex >= 0;
   const isHoveringActiveDisc =
     isHoveringDisc && hoveredDiscIndex === centerDiscIndex;
-
   const mode: CursorMode = deriveMode({
     isPlaying,
     isHoveringDisc,
     isHoveringActiveDisc,
     compact,
     isDesktop,
-    snapEl,
+    snapEl: effectiveSnapEl,
     scrubPos,
   });
 
