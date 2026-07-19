@@ -1,6 +1,14 @@
 import { animated, to, useSpring, useSpringValue } from "@react-spring/web";
 import { useEffect, useRef, useState } from "react";
 
+// ─── Debug Logger ───────────────────────────────────────────────────────────
+const DEBUG_CURSOR = true;
+function cursorLog(tag: string, data?: Record<string, unknown>) {
+  if (!DEBUG_CURSOR) return;
+  const ts = performance.now().toFixed(1);
+  console.log(`[Cursor ${ts}ms] ${tag}`, data ?? "");
+}
+
 // ─── Cursor Mode (discriminated union) ──────────────────────────────────────
 
 /** Face shown on the coin cursor */
@@ -204,6 +212,7 @@ export function CustomCursor({
       if (!mouseInPageRef.current) {
         mouseInPageRef.current = true;
         setMouseInPage(true);
+        cursorLog("mouseInPage → TRUE (from mousemove)");
       }
       if (!rafRef.current) {
         rafRef.current = requestAnimationFrame(() => {
@@ -224,12 +233,19 @@ export function CustomCursor({
       ) {
         mouseInPageRef.current = false;
         setMouseInPage(false);
+        cursorLog("mouseInPage → FALSE (documentElement mouseleave)", {
+          x,
+          y,
+          winW: window.innerWidth,
+          winH: window.innerHeight,
+        });
       }
     };
     const onVisChange = () => {
       if (document.hidden) {
         mouseInPageRef.current = false;
         setMouseInPage(false);
+        cursorLog("mouseInPage → FALSE (page hidden)");
       }
     };
     window.addEventListener("mousemove", onMove);
@@ -245,12 +261,20 @@ export function CustomCursor({
 
   // ── Touch detection ──────────────────────────────────────────────────────
   useEffect(() => {
-    const onTouch = () => setIsTouch(true);
-    const onMouse = () => setIsTouch(false);
+    const onTouch = () => {
+      cursorLog("isTouch → TRUE (touchstart)");
+      setIsTouch(true);
+    };
+    const onMouse = () => {
+      cursorLog("isTouch → FALSE (mousemove once)");
+      setIsTouch(false);
+    };
     window.addEventListener("touchstart", onTouch, { once: true });
     window.addEventListener("mousemove", onMouse, { once: true });
     const onPointerDown = (e: PointerEvent) => {
-      setIsTouch(e.pointerType === "touch");
+      const touch = e.pointerType === "touch";
+      cursorLog(`isTouch → ${touch} (pointerdown: ${e.pointerType})`);
+      setIsTouch(touch);
     };
     window.addEventListener("pointerdown", onPointerDown);
     return () => {
@@ -273,6 +297,10 @@ export function CustomCursor({
         cancelAnimationFrame(pendingLeave);
         pendingLeave = null;
       }
+      cursorLog("snapEl SET (mouseenter)", {
+        attr: el.dataset.cursorSnap,
+        tag: el.tagName,
+      });
       setSnapEl(el);
     };
     const onLeave = (e: MouseEvent) => {
@@ -282,6 +310,10 @@ export function CustomCursor({
       if (!el) return;
       const related = e.relatedTarget as HTMLElement | null;
       if (related && el.contains(related)) return;
+      cursorLog("snapEl mouseleave fired", {
+        attr: el.dataset.cursorSnap,
+        relatedTag: related?.tagName ?? null,
+      });
       pendingLeave = requestAnimationFrame(() => {
         pendingLeave = null;
         if (el.isConnected) {
@@ -293,9 +325,13 @@ export function CustomCursor({
             y >= rect.top &&
             y <= rect.bottom
           ) {
+            cursorLog("snapEl leave CANCELLED (still inside rect)");
             return;
           }
         }
+        cursorLog("snapEl CLEARED (mouseleave)", {
+          attr: el.dataset.cursorSnap,
+        });
         setSnapEl(null);
       });
     };
@@ -306,11 +342,17 @@ export function CustomCursor({
       if (!(target instanceof Element)) return;
       const el = target.closest<HTMLElement>("[data-cursor-snap]");
       if (!el) return;
+      cursorLog("snapEl CLICK detected", {
+        attr: el.dataset.cursorSnap,
+      });
       // Poll for up to ~300ms (18 frames) to catch spring-animated exits
       let polls = 0;
       const poll = () => {
         polls++;
         if (!el.isConnected) {
+          cursorLog("snapEl CLEARED (click poll: disconnected)", {
+            polls,
+          });
           setSnapEl(null);
           return;
         }
@@ -321,11 +363,23 @@ export function CustomCursor({
           style.display === "none" ||
           Number.parseFloat(style.opacity) < 0.1
         ) {
+          cursorLog("snapEl CLEARED (click poll: inactive)", {
+            polls,
+            pointerEvents: style.pointerEvents,
+            opacity: style.opacity,
+            visibility: style.visibility,
+            display: style.display,
+          });
           setSnapEl(null);
           return;
         }
         if (polls < 18) {
           pendingClick = requestAnimationFrame(poll);
+        } else {
+          cursorLog("snapEl click poll EXHAUSTED (18 frames)", {
+            pointerEvents: style.pointerEvents,
+            opacity: style.opacity,
+          });
         }
       };
       pendingClick = requestAnimationFrame(poll);
@@ -356,6 +410,9 @@ export function CustomCursor({
   const effectiveSnapEl = (() => {
     if (!snapEl) return null;
     if (!snapEl.isConnected) {
+      cursorLog("effectiveSnapEl: CLEARED (disconnected)", {
+        attr: snapEl.dataset.cursorSnap,
+      });
       setSnapEl(null);
       return null;
     }
@@ -366,6 +423,13 @@ export function CustomCursor({
       style.display === "none" ||
       Number.parseFloat(style.opacity) < 0.1
     ) {
+      cursorLog("effectiveSnapEl: CLEARED (style check)", {
+        attr: snapEl.dataset.cursorSnap,
+        pointerEvents: style.pointerEvents,
+        opacity: style.opacity,
+        visibility: style.visibility,
+        display: style.display,
+      });
       setSnapEl(null);
       return null;
     }
@@ -385,6 +449,32 @@ export function CustomCursor({
     snapEl: effectiveSnapEl,
     scrubPos,
   });
+
+  // DEBUG: log every render's final state
+  const prevStateRef = useRef({ visible, modeKind: mode.kind, modeSize: mode.size, mouseInPage, isTouch, snapAttr: "" as string | undefined });
+  const currentSnapAttr = effectiveSnapEl?.dataset.cursorSnap;
+  if (
+    prevStateRef.current.visible !== visible ||
+    prevStateRef.current.modeKind !== mode.kind ||
+    prevStateRef.current.modeSize !== mode.size ||
+    prevStateRef.current.mouseInPage !== mouseInPage ||
+    prevStateRef.current.isTouch !== isTouch ||
+    prevStateRef.current.snapAttr !== currentSnapAttr
+  ) {
+    cursorLog("STATE CHANGE", {
+      visible,
+      mouseInPage,
+      isTouch,
+      "mode.kind": mode.kind,
+      "mode.size": mode.size,
+      "mode.face": mode.face,
+      "mode.icon": mode.icon,
+      snapAttr: currentSnapAttr ?? null,
+      hoveredDiscIndex,
+      centerDiscIndex,
+    });
+    prevStateRef.current = { visible, modeKind: mode.kind, modeSize: mode.size, mouseInPage, isTouch, snapAttr: currentSnapAttr };
+  }
 
 
   // ── Springs ───────────────────────────────────────────────────────────────
