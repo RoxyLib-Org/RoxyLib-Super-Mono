@@ -263,6 +263,7 @@ export function CustomCursor({
   // ── Snap target detection (data-cursor-snap elements) ─────────────────────
   useEffect(() => {
     let pendingLeave: number | null = null;
+    let pendingClick: number | null = null;
     const onEnter = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
@@ -298,12 +299,46 @@ export function CustomCursor({
         setSnapEl(null);
       });
     };
+    // After clicking a snap target (e.g. close), the element may fade out
+    // without firing mouseleave. Poll briefly to detect it becoming inactive.
+    const onClick = (e: MouseEvent) => {
+      const target = e.target;
+      if (!(target instanceof Element)) return;
+      const el = target.closest<HTMLElement>("[data-cursor-snap]");
+      if (!el) return;
+      // Poll for up to ~300ms (18 frames) to catch spring-animated exits
+      let polls = 0;
+      const poll = () => {
+        polls++;
+        if (!el.isConnected) {
+          setSnapEl(null);
+          return;
+        }
+        const style = getComputedStyle(el);
+        if (
+          style.pointerEvents === "none" ||
+          style.visibility === "hidden" ||
+          style.display === "none" ||
+          Number.parseFloat(style.opacity) < 0.1
+        ) {
+          setSnapEl(null);
+          return;
+        }
+        if (polls < 18) {
+          pendingClick = requestAnimationFrame(poll);
+        }
+      };
+      pendingClick = requestAnimationFrame(poll);
+    };
     document.addEventListener("mouseenter", onEnter, true);
     document.addEventListener("mouseleave", onLeave, true);
+    document.addEventListener("click", onClick, true);
     return () => {
       document.removeEventListener("mouseenter", onEnter, true);
       document.removeEventListener("mouseleave", onLeave, true);
+      document.removeEventListener("click", onClick, true);
       if (pendingLeave !== null) cancelAnimationFrame(pendingLeave);
+      if (pendingClick !== null) cancelAnimationFrame(pendingClick);
     };
   }, []);
 
@@ -351,27 +386,6 @@ export function CustomCursor({
     scrubPos,
   });
 
-  // DEBUG: trace cursor disappearance
-  const prevVisRef = useRef(true);
-  if (visible && !prevVisRef.current) {
-    console.log("[Cursor] RESTORED", { mouseInPage, isTouch });
-  }
-  if (!visible && prevVisRef.current) {
-    console.warn("[Cursor] VANISHED!", {
-      mouseInPage,
-      isTouch,
-      pos,
-      snapEl: effectiveSnapEl?.tagName ?? null,
-    });
-    console.trace("[Cursor] vanish trace");
-  }
-  prevVisRef.current = visible;
-  if (visible && mode.size <= 0) {
-    console.warn("[Cursor] SIZE ZERO!", {
-      mode,
-      effectiveSnapEl: effectiveSnapEl?.tagName ?? null,
-    });
-  }
 
   // ── Springs ───────────────────────────────────────────────────────────────
   const isSnapped = mode.kind === "snap";
