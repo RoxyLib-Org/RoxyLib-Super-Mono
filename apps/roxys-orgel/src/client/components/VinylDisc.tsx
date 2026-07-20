@@ -597,7 +597,7 @@ export function VinylDisc({
                           : 71 * (1 - (p - 0.66) / 0.34);
                     if (r <= 0)
                       return "radial-gradient(circle at center, transparent 0%, transparent 100%)";
-                    const inner = Math.max(0, r - 12);
+                    const inner = r;
                     return `radial-gradient(circle at center, black 0%, black ${inner}%, transparent ${r}%)`;
                   }),
                   WebkitMaskImage: progress.to((p) => {
@@ -609,7 +609,7 @@ export function VinylDisc({
                           : 71 * (1 - (p - 0.66) / 0.34);
                     if (r <= 0)
                       return "radial-gradient(circle at center, transparent 0%, transparent 100%)";
-                    const inner = Math.max(0, r - 12);
+                    const inner = r;
                     return `radial-gradient(circle at center, black 0%, black ${inner}%, transparent ${r}%)`;
                   }),
                 }}
@@ -656,14 +656,14 @@ export function VinylDisc({
                     const r = p <= 0 ? 71 : p >= 0.33 ? 0 : 71 * (1 - p / 0.33);
                     if (r <= 0)
                       return "radial-gradient(circle at center, transparent 0%, transparent 100%)";
-                    const inner = Math.max(0, r - 12);
+                    const inner = r;
                     return `radial-gradient(circle at center, black 0%, black ${inner}%, transparent ${r}%)`;
                   }),
                   WebkitMaskImage: progress.to((p) => {
                     const r = p <= 0 ? 71 : p >= 0.33 ? 0 : 71 * (1 - p / 0.33);
                     if (r <= 0)
                       return "radial-gradient(circle at center, transparent 0%, transparent 100%)";
-                    const inner = Math.max(0, r - 12);
+                    const inner = r;
                     return `radial-gradient(circle at center, black 0%, black ${inner}%, transparent ${r}%)`;
                   }),
                 }}
