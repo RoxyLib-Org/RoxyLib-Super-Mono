@@ -239,16 +239,28 @@ export function CustomCursor({
     const onOut = (e: MouseEvent) => {
       // mouseout with relatedTarget===null means pointer left the document
       if (e.relatedTarget !== null) return;
+      // Extra guard: only consider it a real exit if the coordinate is
+      // actually outside or at the edge of the viewport. Layout reflows
+      // from spring animations can fire mouseout with null relatedTarget
+      // while the pointer is still well within the page.
+      const { clientX: x, clientY: y } = e;
+      const margin = 5;
+      const isOutside =
+        x <= margin ||
+        y <= margin ||
+        x >= window.innerWidth - margin ||
+        y >= window.innerHeight - margin;
+      if (!isOutside) {
+        cursorLog("mouseout SUPPRESSED (inside viewport)", { x, y });
+        return;
+      }
       clearHide();
       hideTimer = setTimeout(() => {
         hideTimer = null;
         mouseInPageRef.current = false;
         setMouseInPage(false);
-        cursorLog("mouseInPage → FALSE (confirmed exit)", {
-          x: e.clientX,
-          y: e.clientY,
-        });
-      }, 150);
+        cursorLog("mouseInPage → FALSE (confirmed exit)", { x, y });
+      }, 200);
     };
 
     const onVisChange = () => {
@@ -301,7 +313,22 @@ export function CustomCursor({
   useEffect(() => {
     let pendingLeave: number | null = null;
     let pendingClick: number | null = null;
+    // After a click clears a snap target, suppress new snap captures briefly
+    // to prevent the underlying element (e.g. minimize) from re-capturing.
+    let snapCooldown = false;
+    let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
+    const startCooldown = () => {
+      snapCooldown = true;
+      if (cooldownTimer) clearTimeout(cooldownTimer);
+      cooldownTimer = setTimeout(() => {
+        snapCooldown = false;
+        cooldownTimer = null;
+        cursorLog("snap cooldown ENDED");
+      }, 400);
+    };
+
     const onEnter = (e: MouseEvent) => {
+      if (snapCooldown) return;
       const target = e.target;
       if (!(target instanceof Element)) return;
       const el = target.closest<HTMLElement>("[data-cursor-snap]");
@@ -348,8 +375,6 @@ export function CustomCursor({
         setSnapEl(null);
       });
     };
-    // After clicking a snap target (e.g. close), the element may fade out
-    // without firing mouseleave. Poll briefly to detect it becoming inactive.
     const onClick = (e: MouseEvent) => {
       const target = e.target;
       if (!(target instanceof Element)) return;
@@ -358,15 +383,13 @@ export function CustomCursor({
       cursorLog("snapEl CLICK detected", {
         attr: el.dataset.cursorSnap,
       });
-      // Poll for up to ~300ms (18 frames) to catch spring-animated exits
       let polls = 0;
       const poll = () => {
         polls++;
         if (!el.isConnected) {
-          cursorLog("snapEl CLEARED (click poll: disconnected)", {
-            polls,
-          });
+          cursorLog("snapEl CLEARED (click poll: disconnected)", { polls });
           setSnapEl(null);
+          startCooldown();
           return;
         }
         const style = getComputedStyle(el);
@@ -384,6 +407,7 @@ export function CustomCursor({
             display: style.display,
           });
           setSnapEl(null);
+          startCooldown();
           return;
         }
         if (polls < 18) {
@@ -406,6 +430,7 @@ export function CustomCursor({
       document.removeEventListener("click", onClick, true);
       if (pendingLeave !== null) cancelAnimationFrame(pendingLeave);
       if (pendingClick !== null) cancelAnimationFrame(pendingClick);
+      if (cooldownTimer) clearTimeout(cooldownTimer);
     };
   }, []);
 
