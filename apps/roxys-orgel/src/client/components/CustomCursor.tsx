@@ -521,9 +521,16 @@ export function CustomCursor({
   const targetY = isSnapped ? mode.y : pos.y;
   const immediatePos = isSnapped && mode.immediate;
 
+  // Always show at least a minimum dot (12px). The mouseInPage detection is
+  // too unreliable (spurious mouseout during layout reflows) to hide entirely.
+  // The cursor is only hidden for touch devices (isTouch).
+  const MIN_DOT = 12;
+  const targetSize = isTouch ? 0 : Math.max(mode.size, MIN_DOT);
+  const targetOpacity = isTouch ? 0 : 1;
+
   const spring = useSpring({
-    size: visible ? mode.size : 0,
-    opacity: visible ? 1 : 0,
+    size: targetSize,
+    opacity: targetOpacity,
     posX: targetX,
     posY: targetY,
     config: { mass: 1, tension: 320, friction: 22 },
