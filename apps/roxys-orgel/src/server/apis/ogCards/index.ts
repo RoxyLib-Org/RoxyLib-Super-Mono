@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { HonoCtxEnv } from "@/shared/types";
 import { renderCardResponse } from "./shared";
+import { songCoverRoute } from "./songCover";
 
 /**
  * Demo OG card endpoint:
@@ -9,16 +10,16 @@ import { renderCardResponse } from "./shared";
  * Renders a simple album cover card with title and artist text,
  * screenshotted via Browser Run and cached in R2.
  */
-export const ogCardRoute = new Hono<HonoCtxEnv>().get(
-  "/api/og/demo",
-  async (c) => {
-    const title = c.req.query("title") || "Unknown Album";
-    const artist = c.req.query("artist") || "Unknown Artist";
-    const r2Key = `og/demo-${encodeURIComponent(title)}-${encodeURIComponent(artist)}.png`;
+const ogCards = new Hono<HonoCtxEnv>().get("/api/og/demo", async (c) => {
+  const title = c.req.query("title") || "Unknown Album";
+  const artist = c.req.query("artist") || "Unknown Artist";
+  const r2Key = `og/demo-${encodeURIComponent(title)}-${encodeURIComponent(artist)}.png`;
+  return renderCardResponse(c, r2Key, () => buildDemoHtml(title, artist));
+});
 
-    return renderCardResponse(c, r2Key, () => buildDemoHtml(title, artist));
-  },
-);
+ogCards.route("/", songCoverRoute);
+
+export const ogCardRoute = ogCards;
 
 function buildDemoHtml(title: string, artist: string): string {
   return `<!DOCTYPE html>

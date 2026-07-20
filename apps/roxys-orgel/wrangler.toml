@@ -19,6 +19,7 @@ binding = "DB"
 database_name = "roxys-orgel"
 database_id = "7997e9d1-29cd-4746-9778-5c7a9c919077"
 migrations_dir = "./drizzle"
+experimental_remote = true
 
 [[kv_namespaces]]
 binding = "KV"
@@ -27,6 +28,7 @@ id = "07556907bfe245c9a28817ea61418367"
 [[r2_buckets]]
 binding = "R2"
 bucket_name = "rx-orgel"
+experimental_remote = true
 
 
 [browser]

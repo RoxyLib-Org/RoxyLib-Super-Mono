@@ -15,6 +15,8 @@ export interface AudioPlayer {
   currentTime: number;
   /** Total duration in seconds (0 until loaded) */
   duration: number;
+  /** Whether the audio element has a source loaded */
+  hasSrc: boolean;
   /** Read current time imperatively without triggering re-render */
   getTime: () => number;
   play: () => void;
@@ -35,6 +37,7 @@ export function useAudioPlayer(): AudioPlayer {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
+  const [hasSrc, setHasSrc] = useState(false);
   const playOnLoadRef = useRef(false);
   const rafRef = useRef(0);
 
@@ -125,6 +128,7 @@ export function useAudioPlayer(): AudioPlayer {
     if (!audio.src.endsWith(url)) {
       audio.src = url;
       audio.load();
+      setHasSrc(true);
       setCurrentTime(0);
       setDuration(0);
     }
@@ -134,26 +138,32 @@ export function useAudioPlayer(): AudioPlayer {
     const audio = audioRef.current;
     if (!audio) return;
     const url = `/api/audio/${encodeId(track.r2Key)}`;
-    if (audio.src.endsWith(url)) {
-      // Same track — just play
-      audio.play().then(
-        () => setIsPlaying(true),
-        () => {},
-      );
-    } else {
-      // New track — set flag, load, canplay listener will auto-play
-      playOnLoadRef.current = true;
+    const isSameTrack = audio.src.endsWith(url);
+
+    if (!isSameTrack) {
       audio.src = url;
       audio.load();
-      setCurrentTime(0);
-      setDuration(0);
+      setHasSrc(true);
     }
+
+    // All track switches start from zero — unconditionally
+    audio.currentTime = 0;
+    setCurrentTime(0);
+    setDuration(isSameTrack ? audio.duration || 0 : 0);
+
+    audio.play().then(
+      () => setIsPlaying(true),
+      () => {
+        if (!isSameTrack) playOnLoadRef.current = true;
+      },
+    );
   }, []);
 
   return {
     isPlaying,
     currentTime,
     duration,
+    hasSrc,
     getTime,
     play,
     pause,

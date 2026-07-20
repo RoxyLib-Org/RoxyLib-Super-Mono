@@ -1,6 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { encodeId } from "@/server/utils/r2-scanner";
 import { publicProcedure, router } from "../trpc";
+
+function coverKeyToUrl(key: string | null): string | null {
+  if (!key) return null;
+  if (key.startsWith("http://") || key.startsWith("https://")) return key;
+  return `/api/cover/${encodeId(key)}`;
+}
 
 interface AlbumRow {
   id: string;
@@ -10,7 +17,6 @@ interface AlbumRow {
   cover_key: string | null;
   created_at: number;
 }
-
 
 export const albumRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -33,7 +39,7 @@ export const albumRouter = router({
       title: a.title,
       artistName: a.artist_name,
       releaseDate: a.release_year ? String(a.release_year) : null,
-      coverUrl: a.cover_key ?? null,
+      coverUrl: coverKeyToUrl(a.cover_key),
       songCount: countMap.get(a.id) ?? 0,
     }));
   }),
@@ -71,7 +77,7 @@ export const albumRouter = router({
         id: album.id,
         title: album.title,
         artistName: album.artist_name,
-        coverUrl: album.cover_key ?? null,
+        coverUrl: coverKeyToUrl(album.cover_key),
         songs: songs.map((s) => ({
           id: s.id,
           title: s.title,

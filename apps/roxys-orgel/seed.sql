@@ -11,9 +11,9 @@ INSERT INTO artists (id, name, created_at) VALUES ('ar-oohara', '大原ゆい子
 INSERT INTO artists (id, name, created_at) VALUES ('ar-fujisawa', '藤澤慶昌', 1784443819);
 
 -- Albums (cover_key stores Cover Art Archive URL directly)
-INSERT INTO albums (id, title, artist_id, release_year, cover_key, created_at) VALUES ('al-theme', 'TVアニメ『無職転生~異世界行ったら本気だす~』Theme Song Collection', 'ar-oohara', 2022, 'https://coverartarchive.org/release-group/a7b7d165-f7b3-4275-b0e7-6998bf245907/front-500', 1784443819);
+INSERT INTO albums (id, title, artist_id, release_year, cover_key, created_at) VALUES ('al-theme', 'TVアニメ『無職転生~異世界行ったら本気だす~』Theme Song Collection', 'ar-oohara', 2022, 'https://coverartarchive.org/release/47abf02c-74d4-40ef-a0cf-a9c6372c6418/front-500', 1784443819);
 INSERT INTO albums (id, title, artist_id, release_year, cover_key, created_at) VALUES ('al-ost1', '無職転生 オリジナル・サウンドトラック 1', 'ar-fujisawa', 2021, 'https://coverartarchive.org/release-group/b241be51-9de5-4d57-8230-7720a5c017c7/front-500', 1784443819);
-INSERT INTO albums (id, title, artist_id, release_year, cover_key, created_at) VALUES ('al-ost2', '無職転生 オリジナル・サウンドトラック 2', 'ar-fujisawa', 2021, 'https://coverartarchive.org/release-group/c543fe11-1bd1-4183-839c-c72bec104b6a/front-500', 1784443819);
+INSERT INTO albums (id, title, artist_id, release_year, cover_key, created_at) VALUES ('al-ost2', '無職転生 オリジナル・サウンドトラック 2', 'ar-fujisawa', 2021, 'https://coverartarchive.org/release/ef17bb20-9ffc-463b-b329-d73a078a9810/front-500', 1784443819);
 
 -- Songs
 -- 無職転生 オリジナル・サウンドトラック 1

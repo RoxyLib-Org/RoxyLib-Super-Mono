@@ -214,18 +214,20 @@ export function VinylGrid() {
     };
   }, [activeDisc, tracks, duration, lyricsQuery.data]);
 
-  // ── Load track into audio player when activeDisc changes ──────────────────
-  useEffect(() => {
-    if (activeDisc >= 0 && tracks.length > 0) {
-      const track = tracks[activeDisc % tracks.length];
+  // ── Play track synchronously (must be called from user gesture context) ───
+  const playTrack = useCallback(
+    (index: number) => {
+      if (index < 0 || tracks.length === 0) return;
+      const track = tracks[index % tracks.length];
       audio.loadAndPlay({
         r2Key: track.r2Key,
         title: track.title,
         artistName: track.artist,
         albumTitle: track.album,
       });
-    }
-  }, [activeDisc, tracks, audio.loadAndPlay]);
+    },
+    [tracks, audio.loadAndPlay],
+  );
 
   const offsetRef = useRef([0, 0]);
   const progressRef = useRef(0.66);
@@ -261,7 +263,21 @@ export function VinylGrid() {
 
   // ── Playback controls (delegate to audio player) ──────────────────────────
   const play = useCallback(() => audio.play(), [audio.play]);
-  const togglePlay = useCallback(() => audio.toggle(), [audio.toggle]);
+  const togglePlay = useCallback(() => {
+    if (!audio.hasSrc && tracks.length > 0) {
+      // Cold start: no track loaded — load the active disc and play
+      const idx = activeDiscRef.current;
+      const track = tracks[idx >= 0 ? idx % tracks.length : 0];
+      audio.loadAndPlay({
+        r2Key: track.r2Key,
+        title: track.title,
+        artistName: track.artist,
+        albumTitle: track.album,
+      });
+      return;
+    }
+    audio.toggle();
+  }, [audio.toggle, audio.loadAndPlay, audio.hasSrc, tracks]);
 
   const resetElapsed = useCallback(() => {
     audio.seek(0);
@@ -377,7 +393,7 @@ export function VinylGrid() {
               );
         panToDisc(target);
         setActiveDisc(target);
-        // loadAndPlay fires via effect on activeDisc change
+        // Audio continues from where it was (drag doesn't restart playback)
       }
     }, 150);
   }, [progress, coords, panToDisc]);
@@ -393,7 +409,7 @@ export function VinylGrid() {
         panToDisc(index);
         setActiveDisc(index);
         resetElapsed();
-        // loadAndPlay fires via effect on activeDisc change
+        playTrack(index);
         progressRef.current = 0.66;
         savedProgressRef.current = 0.66;
         progress.start(0.66);
@@ -410,9 +426,9 @@ export function VinylGrid() {
       panToDisc(index);
       setActiveDisc(index);
       resetElapsed();
-      // loadAndPlay fires via effect on activeDisc change
+      playTrack(index);
     },
-    [panToDisc, progress, togglePlay, resetElapsed],
+    [panToDisc, progress, togglePlay, resetElapsed, playTrack],
   );
 
   // ── Prev / Next ────────────────────────────────────────────────────────────
@@ -421,16 +437,16 @@ export function VinylGrid() {
     panToDisc(prev);
     setActiveDisc(prev);
     resetElapsed();
-    // loadAndPlay fires via effect on activeDisc change
-  }, [activeDisc, coords, panToDisc, resetElapsed]);
+    playTrack(prev);
+  }, [activeDisc, coords, panToDisc, resetElapsed, playTrack]);
 
   const handleNext = useCallback(() => {
     const next = (activeDisc + 1) % coords.length;
     panToDisc(next);
     setActiveDisc(next);
     resetElapsed();
-    // loadAndPlay fires via effect on activeDisc change
-  }, [activeDisc, coords, panToDisc, resetElapsed]);
+    playTrack(next);
+  }, [activeDisc, coords, panToDisc, resetElapsed, playTrack]);
 
   // ── Mouse handlers (desktop: drag + click via hoveredDiscIndex) ────────────
   const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -769,6 +785,9 @@ export function VinylGrid() {
             isPlaying={isPlaying}
             onHover={setHoveredDiscIndex}
             coverUrl={tracks[idx % (tracks.length || 1)]?.coverUrl ?? null}
+            title={tracks[idx % (tracks.length || 1)]?.title ?? null}
+            artist={tracks[idx % (tracks.length || 1)]?.artist ?? null}
+            album={tracks[idx % (tracks.length || 1)]?.album ?? null}
           />
         ))}
       </div>

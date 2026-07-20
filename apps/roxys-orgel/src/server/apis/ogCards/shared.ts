@@ -4,14 +4,39 @@ import type { HonoCtxEnv } from "@/shared/types";
 
 const CACHE_TTL_MS = 2 * 60 * 60 * 1000;
 
+/** Fetch a URL and return it as a base64 data URL */
+export async function fetchAsDataUrl(url: string): Promise<string> {
+  if (!url) return "";
+  try {
+    const resp = await fetch(url);
+    if (!resp.ok) return "";
+    const contentType = resp.headers.get("content-type") || "image/jpeg";
+    const buf = await resp.arrayBuffer();
+    const base64 = btoa(
+      Array.from(new Uint8Array(buf))
+        .map((b) => String.fromCharCode(b))
+        .join(""),
+    );
+    return `data:${contentType};base64,${base64}`;
+  } catch {
+    return "";
+  }
+}
+
 /**
  * Render an HTML page to a PNG screenshot via Browser Run,
  * cache the result in R2, and return it as a Response.
  */
+export interface RenderOptions {
+  width?: number;
+  height?: number;
+}
+
 export async function renderCardResponse(
   c: Context<HonoCtxEnv>,
   r2Key: string,
   buildHtml: () => Promise<string> | string,
+  opts?: RenderOptions,
 ): Promise<Response> {
   // Check R2 cache first
   const cached = await c.env.R2.head(r2Key);
@@ -35,7 +60,10 @@ export async function renderCardResponse(
   const browser = await puppeteer.launch(c.env.BROWSER);
   try {
     const page = await browser.newPage();
-    await page.setViewport({ width: 1200, height: 630 });
+    await page.setViewport({
+      width: opts?.width ?? 1200,
+      height: opts?.height ?? 630,
+    });
     await page.setContent(html, { waitUntil: "networkidle0" });
 
     // Wait for the page to signal readiness

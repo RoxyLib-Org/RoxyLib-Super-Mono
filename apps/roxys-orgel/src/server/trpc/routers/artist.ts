@@ -1,6 +1,13 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { encodeId } from "@/server/utils/r2-scanner";
 import { publicProcedure, router } from "../trpc";
+
+function coverKeyToUrl(key: string | null): string | null {
+  if (!key) return null;
+  if (key.startsWith("http://") || key.startsWith("https://")) return key;
+  return `/api/cover/${encodeId(key)}`;
+}
 
 export const artistRouter = router({
   list: publicProcedure.query(async ({ ctx }) => {
@@ -63,7 +70,7 @@ export const artistRouter = router({
         albums: artistAlbums.map((a) => ({
           id: a.id,
           title: a.title,
-          coverKey: a.cover_key,
+          coverUrl: coverKeyToUrl(a.cover_key),
           songCount: a.song_count,
         })),
         songs: artistSongs.map((s) => ({

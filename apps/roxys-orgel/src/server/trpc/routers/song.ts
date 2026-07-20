@@ -1,6 +1,12 @@
 import { TRPCError } from "@trpc/server";
 import { z } from "zod";
+import { encodeId } from "@/server/utils/r2-scanner";
 import { publicProcedure, router } from "../trpc";
+
+function coverKeyToUrl(key: string | null): string | null {
+  if (!key) return null;
+  return `/api/cover/${encodeId(key)}`;
+}
 
 interface SongRow {
   id: string;
@@ -58,7 +64,7 @@ export const songRouter = router({
         albumTitle: s.album_title,
         artistName: s.artist_name,
         durationMs: s.duration ? s.duration * 1000 : null,
-        coverUrl: s.cover_key ?? null,
+        coverUrl: coverKeyToUrl(s.cover_key),
       }));
     }),
 
@@ -90,7 +96,7 @@ export const songRouter = router({
         albumTitle: song.album_title,
         artistName: song.artist_name,
         durationMs: song.duration ? song.duration * 1000 : null,
-        coverUrl: song.cover_key ?? null,
+        coverUrl: coverKeyToUrl(song.cover_key),
       };
     }),
 
