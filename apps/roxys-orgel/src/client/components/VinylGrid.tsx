@@ -60,23 +60,26 @@ function generateHexPositions(
 
 const DISC_COUNT = 61;
 
+// Snap levels with EQUAL spacing between each adjacent pair
+// Logical phases: hero(2) → player(1) → focused(0.66) → zoomed(0.33) → browse(0) → footer(-1)
+// We remap so each snap gap is 1 unit in "scroll space", then map back to progress values.
+const SNAP_POINTS: readonly number[] = [-0.4, 0, 0.33, 0.66, 1, 2];
+
 function snapToLevel(value: number): number {
-  // For hero/footer boundaries: only snap to -1/2 if already past the threshold
-  // Otherwise snap within 0-1 range
-  if (value > 1.3) return 2;
-  if (value < -0.3) return -1;
-  // Within normal zoom range, snap to 0/0.33/0.66/1
-  const zoomLevels = [0, 0.33, 0.66, 1];
-  let closest = 0;
-  let minDist = Math.abs(value - zoomLevels[0]);
-  for (let i = 1; i < zoomLevels.length; i++) {
-    const d = Math.abs(value - zoomLevels[i]);
+  // For hero/footer boundaries: only snap if clearly past threshold
+  if (value > 1.5) return 2;
+  if (value < -0.25) return -0.4;
+  // Snap to nearest level
+  let closest = SNAP_POINTS[0];
+  let minDist = Math.abs(value - SNAP_POINTS[0]);
+  for (let i = 1; i < SNAP_POINTS.length; i++) {
+    const d = Math.abs(value - SNAP_POINTS[i]);
     if (d < minDist) {
       minDist = d;
-      closest = i;
+      closest = SNAP_POINTS[i];
     }
   }
-  return zoomLevels[closest];
+  return closest;
 }
 
 function findNearestDisc(
@@ -285,11 +288,11 @@ export function VinylGrid() {
       ) as unknown as SpringValue<number>,
     [progress],
   );
-  // footerProgress: 0 when progress>=0, ramps to 1 at progress=-1
+  // footerProgress: 0 when progress>=0, ramps to 1 at progress=-0.4
   const footerProgress = useMemo(
     () =>
       progress.to((p) =>
-        Math.max(0, Math.min(1, -p)),
+        Math.max(0, Math.min(1, -p / 0.4)),
       ) as unknown as SpringValue<number>,
     [progress],
   );
@@ -606,15 +609,30 @@ export function VinylGrid() {
     (evt: WheelEvent) => {
       evt.preventDefault();
 
-      const scrollUp = evt.deltaY < 0;
+      const scrollUp = evt.deltaY < 0; // scroll up = increase progress
       const prev = progressRef.current;
 
-      // Speed varies by region: hero/footer zones scroll much faster
-      let speed = 0.08;
-      if (prev > 1 || prev < 0) speed = 0.3;
+      // Find current position between snap points and apply uniform step
+      // Each gap between adjacent snaps takes ~8 ticks to cross
+      const TICKS_PER_SNAP = 8;
 
-      const delta = scrollUp ? speed : -speed;
-      const next = Math.max(-1, Math.min(2, prev + delta));
+      // Find which gap we're in
+      let lowerIdx = 0;
+      for (let i = 0; i < SNAP_POINTS.length - 1; i++) {
+        if (prev >= SNAP_POINTS[i]) lowerIdx = i;
+      }
+
+      // Calculate the step size based on the current gap width
+      const gapIdx = scrollUp
+        ? Math.min(lowerIdx + 1, SNAP_POINTS.length - 2) // gap we're entering when going up
+        : lowerIdx; // gap we're in when going down
+      const gapLow = SNAP_POINTS[gapIdx];
+      const gapHigh = SNAP_POINTS[gapIdx + 1] ?? SNAP_POINTS[gapIdx];
+      const gapWidth = Math.abs(gapHigh - gapLow) || 0.33;
+      const step = gapWidth / TICKS_PER_SNAP;
+
+      const delta = scrollUp ? step : -step;
+      const next = Math.max(-0.4, Math.min(2, prev + delta));
       progressRef.current = next;
       savedProgressRef.current = next;
       progress.start(next);
@@ -812,7 +830,7 @@ export function VinylGrid() {
   const gridTranslateY = progress.to((p) => {
     if (p > 1) return `translateY(${(p - 1) * 100}%)`;
     if (p < 0) {
-      const t = Math.min(1, -p);
+      const t = Math.min(1, -p / 0.4); // normalize to 0→1 within -0.4 range
       const scale = 1 - t * 0.925; // 1 → 0.075
       return `translateY(${t * 40}%) scale(${scale})`;
     }
@@ -836,14 +854,15 @@ export function VinylGrid() {
           transform: gridTranslateY,
           filter: progress.to((p) => {
             if (p >= 0) return "none";
-            const t = Math.min(1, -p); // 0→1
+            const t = Math.min(1, -p / 0.4);
             // Desaturate + brighten → white dots
             return `saturate(${1 - t}) brightness(${1 + t * 2}) contrast(${1 - t * 0.6})`;
           }),
           opacity: progress.to((p) => {
             if (p >= 0) return 1;
             // Fade slightly so dots are semi-transparent
-            return Math.max(0.3, 1 + p * 0.5);
+            const t = Math.min(1, -p / 0.4);
+            return Math.max(0.3, 1 - t * 0.7);
           }),
         }}
       >
@@ -890,48 +909,48 @@ export function VinylGrid() {
         <animated.div
           className="absolute inset-0 z-30 pointer-events-auto"
           style={{
-            opacity: progress.to((p) => (p < 0 ? Math.max(0, 1 + p * 4) : 1)),
-            pointerEvents: progress.to((p) => (p < -0.2 ? "none" : "auto")),
+            opacity: progress.to((p) => (p < 0 ? Math.max(0, 1 + p * 10) : 1)),
+            pointerEvents: progress.to((p) => (p < -0.1 ? "none" : "auto")),
           }}
         >
-        <ModeButtons
-          progress={zoomProgress}
-          onMinimize={handleMinimize}
-          onMaximize={handleMaximize}
-          onClosePlayer={handleClosePlayer}
-        />
-
-        <TransportControls
-          progress={zoomProgress}
-          elapsed={elapsedSpring}
-          duration={currentSong?.duration}
-          isPlaying={isPlaying}
-          onPlayPause={togglePlay}
-          onPrev={handlePrev}
-          onNext={handleNext}
-          onSeek={seek}
-          onScrubChange={setScrubPos}
-        />
-
-        {/* Song info */}
-        {currentSong && (
-          <SongInfo
-            song={currentSong}
-            isPlayerMode={progressRef.current >= 0.9}
-          />
-        )}
-
-        {/* Synced lyrics */}
-        {currentSong && (
-          <Lyrics
-            lyrics={currentSong.lyrics}
-            currentTime={currentTime}
-            isPlaying={isPlaying}
+          <ModeButtons
             progress={zoomProgress}
+            onMinimize={handleMinimize}
+            onMaximize={handleMaximize}
+            onClosePlayer={handleClosePlayer}
           />
-        )}
 
-        <ZoomIndicator progress={zoomProgress} />
+          <TransportControls
+            progress={zoomProgress}
+            elapsed={elapsedSpring}
+            duration={currentSong?.duration}
+            isPlaying={isPlaying}
+            onPlayPause={togglePlay}
+            onPrev={handlePrev}
+            onNext={handleNext}
+            onSeek={seek}
+            onScrubChange={setScrubPos}
+          />
+
+          {/* Song info */}
+          {currentSong && (
+            <SongInfo
+              song={currentSong}
+              isPlayerMode={progressRef.current >= 0.9}
+            />
+          )}
+
+          {/* Synced lyrics */}
+          {currentSong && (
+            <Lyrics
+              lyrics={currentSong.lyrics}
+              currentTime={currentTime}
+              isPlaying={isPlaying}
+              progress={zoomProgress}
+            />
+          )}
+
+          <ZoomIndicator progress={zoomProgress} />
         </animated.div>
       </animated.div>
 
