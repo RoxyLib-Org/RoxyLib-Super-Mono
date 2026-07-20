@@ -292,6 +292,17 @@ export function VinylGrid() {
     [audio.seek, elapsedSpring],
   );
 
+  // Switch to a new disc: if it's different from current, reset and play from 0
+  const switchDisc = useCallback(
+    (index: number) => {
+      if (index === activeDiscRef.current) return;
+      setActiveDisc(index);
+      resetElapsed();
+      playTrack(index);
+    },
+    [resetElapsed, playTrack],
+  );
+
   // ── Helpers ────────────────────────────────────────────────────────────────
   const updateCenter = useCallback(() => {
     const nearest = findNearestDisc(
@@ -392,11 +403,10 @@ export function VinylGrid() {
                 offsetRef.current[1],
               );
         panToDisc(target);
-        setActiveDisc(target);
-        // Audio continues from where it was (drag doesn't restart playback)
+        switchDisc(target);
       }
     }, 150);
-  }, [progress, coords, panToDisc]);
+  }, [progress, coords, panToDisc, switchDisc]);
 
   // ── Click handler ──────────────────────────────────────────────────────────
   const handleDiscClick = useCallback(
@@ -518,9 +528,9 @@ export function VinylGrid() {
       if (isLevel1) {
         clampOffset();
         updateCenter();
-      } else {
+    } else {
         const snapped = snapToNearest();
-        setActiveDisc(snapped);
+        switchDisc(snapped);
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
       }
@@ -532,6 +542,7 @@ export function VinylGrid() {
       progress,
       hoveredDiscIndex,
       handleDiscClick,
+      switchDisc,
     ],
   );
 
@@ -561,7 +572,7 @@ export function VinylGrid() {
           panToDisc(activeDisc);
         } else {
           const nearest = snapToNearest();
-          setActiveDisc(nearest);
+          switchDisc(nearest);
         }
       }
 
@@ -574,6 +585,7 @@ export function VinylGrid() {
       activeDisc,
       panToDisc,
       snapToNearest,
+      switchDisc,
     ],
   );
 
@@ -648,7 +660,7 @@ export function VinylGrid() {
             panToDisc(activeDisc);
           } else {
             const nearest = snapToNearest();
-            setActiveDisc(nearest);
+            switchDisc(nearest);
           }
         }
         return;
@@ -731,7 +743,7 @@ export function VinylGrid() {
         updateCenter();
       } else {
         const snapped = snapToNearest();
-        setActiveDisc(snapped);
+        switchDisc(snapped);
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
       }
@@ -743,6 +755,7 @@ export function VinylGrid() {
       updateCenter,
       progress,
       handleDiscClick,
+      switchDisc,
     ],
   );
 
