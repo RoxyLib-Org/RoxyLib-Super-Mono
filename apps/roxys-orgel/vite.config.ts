@@ -37,7 +37,10 @@ function r2DevProxy(): Plugin {
     configureServer(server) {
       server.middlewares.use((req, res, next) => {
         const url = req.url ?? "";
-        if (!url.startsWith("/api/audio/") && !url.startsWith("/api/cover/")) {
+        if (
+          !url.startsWith("/api/audio/") &&
+          !url.startsWith("/api/cover/")
+        ) {
           return next();
         }
 

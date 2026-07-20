@@ -1,9 +1,11 @@
-import { useSpringValue } from "@react-spring/web";
+import { animated, type SpringValue, useSpringValue } from "@react-spring/web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { trpc } from "../trpc";
 import { AuroraBackground } from "./AuroraBackground";
 import { CustomCursor } from "./CustomCursor";
+import { FooterSection } from "./FooterSection";
+import { HeroSection } from "./HeroSection";
 import { LoadingOverlay } from "./LoadingOverlay";
 import { Lyrics } from "./Lyrics";
 import { ModeButtons } from "./ModeButtons";
@@ -57,19 +59,24 @@ function generateHexPositions(
 }
 
 const DISC_COUNT = 61;
-const SNAP_LEVELS = [0, 0.33, 0.66, 1];
 
 function snapToLevel(value: number): number {
+  // For hero/footer boundaries: only snap to -1/2 if already past the threshold
+  // Otherwise snap within 0-1 range
+  if (value > 1.3) return 2;
+  if (value < -0.3) return -1;
+  // Within normal zoom range, snap to 0/0.33/0.66/1
+  const zoomLevels = [0, 0.33, 0.66, 1];
   let closest = 0;
-  let minDist = Math.abs(value - SNAP_LEVELS[0]);
-  for (let i = 1; i < SNAP_LEVELS.length; i++) {
-    const d = Math.abs(value - SNAP_LEVELS[i]);
+  let minDist = Math.abs(value - zoomLevels[0]);
+  for (let i = 1; i < zoomLevels.length; i++) {
+    const d = Math.abs(value - zoomLevels[i]);
     if (d < minDist) {
       minDist = d;
       closest = i;
     }
   }
-  return SNAP_LEVELS[closest];
+  return zoomLevels[closest];
 }
 
 function findNearestDisc(
@@ -243,20 +250,49 @@ export function VinylGrid() {
   );
 
   const offsetRef = useRef([0, 0]);
-  const progressRef = useRef(0.66);
-  const savedProgressRef = useRef(0.66);
+  const progressRef = useRef(2);
+  const savedProgressRef = useRef(2);
   const snapTimerRef = useRef(0);
   const gridRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
 
   // ── Springs ────────────────────────────────────────────────────────────────
+  // Single progress spring: [-1, 2]. Range: -1=footer, 0..1=zoom, 2=hero
   const springConfig = { tension: 170, friction: 24 };
   const offsetX = useSpringValue(0, { config: springConfig });
   const offsetY = useSpringValue(0, { config: springConfig });
-  const progress = useSpringValue(0.66, {
+  const progress = useSpringValue(2, {
     config: { tension: 200, friction: 26 },
   });
   /** Elapsed spring synced from audio player currentTime */
   const elapsedSpring = useSpringValue(0);
+
+  // ── Derived progress values ───────────────────────────────────────────────
+  // zoomProgress: clamp(progress, 0, 1) — what child components see as "zoom level"
+  // Cast as SpringValue<number> since children only use .to() which Interpolation supports
+  const zoomProgress = useMemo(
+    () =>
+      progress.to((p) =>
+        Math.max(0, Math.min(1, p)),
+      ) as unknown as SpringValue<number>,
+    [progress],
+  );
+  // heroProgress: 0 when progress<=1, ramps to 1 at progress=2
+  const heroProgress = useMemo(
+    () =>
+      progress.to((p) =>
+        Math.max(0, Math.min(1, p - 1)),
+      ) as unknown as SpringValue<number>,
+    [progress],
+  );
+  // footerProgress: 0 when progress>=0, ramps to 1 at progress=-1
+  const footerProgress = useMemo(
+    () =>
+      progress.to((p) =>
+        Math.max(0, Math.min(1, -p)),
+      ) as unknown as SpringValue<number>,
+    [progress],
+  );
 
   // Keep ref in sync so callbacks always see current activeDisc
   const activeDiscRef = useRef(-1);
@@ -406,7 +442,7 @@ export function VinylGrid() {
       savedProgressRef.current = snapped;
       progress.start(snapped);
 
-      if (snapped >= 1) {
+      if (snapped === 1) {
         const target =
           activeDiscRef.current >= 0
             ? activeDiscRef.current
@@ -547,7 +583,7 @@ export function VinylGrid() {
       if (isLevel1) {
         clampOffset();
         updateCenter();
-    } else {
+      } else {
         const snapped = snapToNearest();
         switchDisc(snapped);
         progressRef.current = savedProgressRef.current;
@@ -570,23 +606,21 @@ export function VinylGrid() {
     (evt: WheelEvent) => {
       evt.preventDefault();
 
-      // In player mode (progress=1), scroll down exits
-      if (progressRef.current >= 1) {
-        if (evt.deltaY > 0) {
-          exitPlayerMode();
-        }
-        return;
-      }
-
+      const scrollUp = evt.deltaY < 0;
       const prev = progressRef.current;
-      const delta = evt.deltaY > 0 ? -0.08 : 0.08;
-      const next = Math.max(0, Math.min(1, prev + delta));
+
+      // Speed varies by region: hero/footer zones scroll much faster
+      let speed = 0.08;
+      if (prev > 1 || prev < 0) speed = 0.3;
+
+      const delta = scrollUp ? speed : -speed;
+      const next = Math.max(-1, Math.min(2, prev + delta));
       progressRef.current = next;
       savedProgressRef.current = next;
       progress.start(next);
 
-      // Transition from level 1 → higher: center on active disc or nearest
-      if (prev === 0 && next > 0) {
+      // Transition from level 0 → higher: center on active disc or nearest
+      if (prev <= 0 && next > 0) {
         if (activeDisc >= 0) {
           panToDisc(activeDisc);
         } else {
@@ -597,20 +631,13 @@ export function VinylGrid() {
 
       scheduleSnap();
     },
-    [
-      progress,
-      exitPlayerMode,
-      scheduleSnap,
-      activeDisc,
-      panToDisc,
-      snapToNearest,
-      switchDisc,
-    ],
+    [progress, scheduleSnap, activeDisc, panToDisc, snapToNearest, switchDisc],
   );
 
   // Register wheel as non-passive to allow preventDefault
+  // Register wheel on the outermost container (not grid) so it works during hero/footer
   useEffect(() => {
-    const el = gridRef.current;
+    const el = containerRef.current;
     if (!el) return;
     el.addEventListener("wheel", handleWheel, { passive: false });
     return () => el.removeEventListener("wheel", handleWheel);
@@ -779,89 +806,137 @@ export function VinylGrid() {
   );
 
   // ── Render ─────────────────────────────────────────────────────────────────
+  // Grid translateY: derived from unified progress
+  // progress > 1 → grid slides down (hero behind)
+  // progress < 0 → grid content slides UP within the black bg, footer fades in
+  const gridTranslateY = progress.to((p) => {
+    if (p > 1) return `translateY(${(p - 1) * 100}%)`;
+    if (p < 0) {
+      const t = Math.min(1, -p);
+      const scale = 1 - t * 0.925; // 1 → 0.075
+      return `translateY(${t * 40}%) scale(${scale})`;
+    }
+    return "translateY(0%)";
+  });
+
   return (
-    <div className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none">
+    <div
+      ref={containerRef}
+      className="relative w-full h-[100dvh] overflow-hidden touch-none select-none cursor-none bg-black"
+    >
       <LiquidGlassFilter />
 
-      <div className="absolute inset-0 bg-black" />
+      {/* Hero section — positioned behind, revealed when grid slides down */}
+      <HeroSection progress={heroProgress} />
 
-      {/* Aurora — visible when progress ≈ 1 AND playing */}
-      <AuroraBackground
-        progress={progress}
-        isPlaying={isPlaying}
-        color="oklch(0 0 0)"
-      />
-
-      {/* Grid layer */}
-      <div
-        ref={gridRef}
-        className="relative w-full h-full origin-center"
-        style={{ transform: `scale(${viewportScale})` }}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+      {/* Main content wrapper — slides up/down based on hero/footer */}
+      <animated.div
+        className="absolute inset-0 z-10 origin-top"
+        style={{
+          transform: gridTranslateY,
+          filter: progress.to((p) => {
+            if (p >= 0) return "none";
+            const t = Math.min(1, -p); // 0→1
+            // Desaturate + brighten → white dots
+            return `saturate(${1 - t}) brightness(${1 + t * 2}) contrast(${1 - t * 0.6})`;
+          }),
+          opacity: progress.to((p) => {
+            if (p >= 0) return 1;
+            // Fade slightly so dots are semi-transparent
+            return Math.max(0.3, 1 + p * 0.5);
+          }),
+        }}
       >
-        {coords.map((coord, idx) => (
-          <VinylDisc
-            key={idx}
-            coord={coord}
-            offset={[offsetX, offsetY]}
-            progress={progress}
-            elapsed={elapsedSpring}
-            index={idx}
-            isCenterDisc={idx === centerDiscIndex}
-            isActiveDisc={idx === activeDisc}
-            isPlaying={isPlaying}
-            onHover={setHoveredDiscIndex}
-            coverUrl={tracks[idx % (tracks.length || 1)]?.coverUrl ?? null}
-            title={tracks[idx % (tracks.length || 1)]?.title ?? null}
-            artist={tracks[idx % (tracks.length || 1)]?.artist ?? null}
-            album={tracks[idx % (tracks.length || 1)]?.album ?? null}
-          />
-        ))}
-      </div>
-
-      <ModeButtons
-        progress={progress}
-        onMinimize={handleMinimize}
-        onMaximize={handleMaximize}
-        onClosePlayer={handleClosePlayer}
-      />
-
-      <TransportControls
-        progress={progress}
-        elapsed={elapsedSpring}
-        duration={currentSong?.duration}
-        isPlaying={isPlaying}
-        onPlayPause={togglePlay}
-        onPrev={handlePrev}
-        onNext={handleNext}
-        onSeek={seek}
-        onScrubChange={setScrubPos}
-      />
-
-      {/* Song info */}
-      {currentSong && (
-        <SongInfo
-          song={currentSong}
-          isPlayerMode={progressRef.current >= 0.9}
-        />
-      )}
-
-      {/* Synced lyrics */}
-      {currentSong && (
-        <Lyrics
-          lyrics={currentSong.lyrics}
-          currentTime={currentTime}
+        {/* Aurora — visible when zoomProgress ≈ 1 AND playing */}
+        <AuroraBackground
+          progress={zoomProgress}
           isPlaying={isPlaying}
-          progress={progress}
+          color="oklch(0 0 0)"
         />
-      )}
 
-      <ZoomIndicator progress={progress} />
+        {/* Grid layer */}
+        <div
+          ref={gridRef}
+          className="relative w-full h-full origin-center"
+          style={{ transform: `scale(${viewportScale})` }}
+          onMouseDown={handleMouseDown}
+          onMouseMove={handleMouseMove}
+          onMouseUp={handleMouseUp}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {coords.map((coord, idx) => (
+            <VinylDisc
+              key={idx}
+              coord={coord}
+              offset={[offsetX, offsetY]}
+              progress={zoomProgress}
+              elapsed={elapsedSpring}
+              index={idx}
+              isCenterDisc={idx === centerDiscIndex}
+              isActiveDisc={idx === activeDisc}
+              isPlaying={isPlaying}
+              onHover={setHoveredDiscIndex}
+              coverUrl={tracks[idx % (tracks.length || 1)]?.coverUrl ?? null}
+              title={tracks[idx % (tracks.length || 1)]?.title ?? null}
+              artist={tracks[idx % (tracks.length || 1)]?.artist ?? null}
+              album={tracks[idx % (tracks.length || 1)]?.album ?? null}
+            />
+          ))}
+        </div>
+
+        {/* UI overlays — hidden when entering footer zone */}
+        <animated.div
+          className="absolute inset-0 z-30 pointer-events-auto"
+          style={{
+            opacity: progress.to((p) => (p < 0 ? Math.max(0, 1 + p * 4) : 1)),
+            pointerEvents: progress.to((p) => (p < -0.2 ? "none" : "auto")),
+          }}
+        >
+        <ModeButtons
+          progress={zoomProgress}
+          onMinimize={handleMinimize}
+          onMaximize={handleMaximize}
+          onClosePlayer={handleClosePlayer}
+        />
+
+        <TransportControls
+          progress={zoomProgress}
+          elapsed={elapsedSpring}
+          duration={currentSong?.duration}
+          isPlaying={isPlaying}
+          onPlayPause={togglePlay}
+          onPrev={handlePrev}
+          onNext={handleNext}
+          onSeek={seek}
+          onScrubChange={setScrubPos}
+        />
+
+        {/* Song info */}
+        {currentSong && (
+          <SongInfo
+            song={currentSong}
+            isPlayerMode={progressRef.current >= 0.9}
+          />
+        )}
+
+        {/* Synced lyrics */}
+        {currentSong && (
+          <Lyrics
+            lyrics={currentSong.lyrics}
+            currentTime={currentTime}
+            isPlaying={isPlaying}
+            progress={zoomProgress}
+          />
+        )}
+
+        <ZoomIndicator progress={zoomProgress} />
+        </animated.div>
+      </animated.div>
+
+      {/* Footer — above grid, fades in when grid slides up */}
+      <FooterSection progress={footerProgress} />
 
       <CustomCursor
         isPlaying={isPlaying}

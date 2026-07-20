@@ -12,9 +12,9 @@ interface ZoomIndicatorProps {
  * - Between progress 0.66→1.0 also fades to 0 (avoid player controls conflict)
  */
 export function ZoomIndicator({ progress }: ZoomIndicatorProps) {
-  const [value, setValue] = useState(0.66);
+  const [value, setValue] = useState(1);
   const [visible, setVisible] = useState(false);
-  const prevValueRef = useRef(0.66);
+  const prevValueRef = useRef(1);
 
   // Track spring: visible while moving, hide immediately when stopped
   useEffect(() => {
