@@ -170,7 +170,7 @@ function TateChuYoko({ text }: { text: string }) {
  * - tate-chū-yoko (text-combine-upright) for short digit/Latin runs (≤4 chars)
  * - Auto font-size scaling when columns are long
  */
-function TitleTypography({ title }: { title: string }) {
+function TitleTypography({ title, color }: { title: string; color: string }) {
   const raw = TITLE_BREAKS[title] ?? [title];
   // Cap to max 2 columns: keep first, merge the rest into second
   const columns = raw.length <= 2 ? raw : [raw[0], raw.slice(1).join("")];
@@ -191,7 +191,7 @@ function TitleTypography({ title }: { title: string }) {
         fontFamily: '"Georgia", "Noto Serif JP", "Noto Serif SC", serif',
         fontWeight: 700,
         fontSize: `${fontSize}px`,
-        color: "#4a3728",
+        color,
         padding: "20px 16px",
         overflow: "hidden",
         letterSpacing: "0.05em",
@@ -638,7 +638,12 @@ export function VinylDisc({
                       backgroundColor: coverStyle.accentColor,
                     }}
                   />
-                  {title && <TitleTypography title={title} />}
+                  {title && (
+                    <TitleTypography
+                      title={title}
+                      color={coverStyle.textColor}
+                    />
+                  )}
                 </div>
               </animated.div>
 
