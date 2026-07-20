@@ -4,6 +4,7 @@ import { useAudioPlayer } from "../hooks/useAudioPlayer";
 import { trpc } from "../trpc";
 import { AuroraBackground } from "./AuroraBackground";
 import { CustomCursor } from "./CustomCursor";
+import { LoadingOverlay } from "./LoadingOverlay";
 import { Lyrics } from "./Lyrics";
 import { ModeButtons } from "./ModeButtons";
 import { SongInfo } from "./SongInfo";
@@ -183,6 +184,18 @@ export function VinylGrid() {
       durationMs: s.durationMs,
     }));
   }, [songsQuery.data]);
+
+  // ── Cover preloading (loading overlay) ────────────────────────────────────
+  const [coversLoaded, setCoversLoaded] = useState(false);
+  const coverUrls = useMemo(() => {
+    if (tracks.length === 0) return [];
+    // Deduplicate and collect unique cover URLs
+    const seen = new Set<string>();
+    for (const t of tracks) {
+      if (t.coverUrl) seen.add(t.coverUrl);
+    }
+    return [...seen];
+  }, [tracks]);
 
   // ── Fetch lyrics for active track ─────────────────────────────────────────
   const activeTrackId =
@@ -856,6 +869,15 @@ export function VinylGrid() {
         centerDiscIndex={centerDiscIndex}
         compact={progressRef.current === 0}
         scrubPos={scrubPos}
+      />
+
+      {/* Loading overlay — preloads cover images */}
+      <LoadingOverlay
+        urls={coverUrls}
+        titles={tracks.map((t) => t.title)}
+        ready={songsQuery.isSuccess}
+        onComplete={() => setCoversLoaded(true)}
+        visible={!coversLoaded}
       />
     </div>
   );
