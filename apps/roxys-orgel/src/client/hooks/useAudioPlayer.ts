@@ -26,6 +26,8 @@ export interface AudioPlayer {
   load: (track: AudioTrack) => void;
   /** Load a track and auto-play once ready */
   loadAndPlay: (track: AudioTrack) => void;
+  /** Register a callback invoked when the current track ends */
+  onEnded: (cb: (() => void) | null) => void;
 }
 
 /**
@@ -39,6 +41,7 @@ export function useAudioPlayer(): AudioPlayer {
   const [duration, setDuration] = useState(0);
   const [hasSrc, setHasSrc] = useState(false);
   const playOnLoadRef = useRef(false);
+  const onEndedRef = useRef<(() => void) | null>(null);
   const rafRef = useRef(0);
 
   // Create audio element once
@@ -54,6 +57,7 @@ export function useAudioPlayer(): AudioPlayer {
     audio.addEventListener("ended", () => {
       setIsPlaying(false);
       setCurrentTime(0);
+      onEndedRef.current?.();
     });
 
     audio.addEventListener("canplay", () => {
@@ -159,6 +163,10 @@ export function useAudioPlayer(): AudioPlayer {
     );
   }, []);
 
+  const onEnded = useCallback((cb: (() => void) | null) => {
+    onEndedRef.current = cb;
+  }, []);
+
   return {
     isPlaying,
     currentTime,
@@ -171,5 +179,6 @@ export function useAudioPlayer(): AudioPlayer {
     seek,
     load,
     loadAndPlay,
+    onEnded,
   };
 }

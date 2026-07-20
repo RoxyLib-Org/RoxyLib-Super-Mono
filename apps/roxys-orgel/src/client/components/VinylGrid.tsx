@@ -458,6 +458,12 @@ export function VinylGrid() {
     playTrack(next);
   }, [activeDisc, coords, panToDisc, resetElapsed, playTrack]);
 
+  // Auto-advance: when track ends, play next (loops back to first)
+  useEffect(() => {
+    audio.onEnded(handleNext);
+    return () => audio.onEnded(null);
+  }, [audio.onEnded, handleNext]);
+
   // ── Mouse handlers (desktop: drag + click via hoveredDiscIndex) ────────────
   const mouseStartRef = useRef<{ x: number; y: number } | null>(null);
   const isDraggingRef = useRef(false);
