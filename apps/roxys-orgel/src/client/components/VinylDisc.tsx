@@ -679,8 +679,9 @@ export function VinylDisc({
                 />
                 {/* Warm tinted overlay with heropattern topography */}
                 <div
-                  className="absolute inset-0 flex items-center justify-center"
+                  className="absolute flex items-center justify-center rounded-full"
                   style={{
+                    inset: "8%",
                     backgroundColor: `color-mix(in srgb, ${coverStyle.backgroundColor} 92%, transparent)`,
                     backgroundImage: coverStyle.backgroundPattern,
                   }}
