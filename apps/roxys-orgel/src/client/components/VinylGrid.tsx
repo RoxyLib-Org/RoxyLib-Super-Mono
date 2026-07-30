@@ -67,26 +67,13 @@ const DISC_COUNT = 61;
 const SNAP_POINTS: readonly number[] = [-0.4, 0, 0.33, 0.66, 1, 2];
 
 function snapToLevel(value: number): number {
-  // Hero zone (1→2): free scroll, only snap at the two edges
-  if (value > 1) {
-    if (value > 1.9) return 2; // snap to top edge
-    if (value < 1.1) return 1; // snap back to player
-    return value; // free — no snap
-  }
-  // Footer zone (0→-0.4): free scroll, only snap at edges
-  if (value < 0) {
-    if (value < -0.32) return -0.4; // snap to bottom edge
-    if (value > -0.08) return 0; // snap back to browse
-    return value; // free — no snap
-  }
-  // Zoom zone (0→1): snap to nearest level
-  let closest = 0;
-  let minDist = Math.abs(value);
-  for (const sp of [0, 0.33, 0.66, 1]) {
-    const d = Math.abs(value - sp);
+  let closest = SNAP_POINTS[0];
+  let minDist = Math.abs(value - SNAP_POINTS[0]);
+  for (let i = 1; i < SNAP_POINTS.length; i++) {
+    const d = Math.abs(value - SNAP_POINTS[i]);
     if (d < minDist) {
       minDist = d;
-      closest = sp;
+      closest = SNAP_POINTS[i];
     }
   }
   return closest;
@@ -693,30 +680,21 @@ export function VinylGrid() {
       const scrollUp = evt.deltaY < 0; // scroll up = increase progress
       const prev = progressRef.current;
 
-      // Find current position between snap points and apply uniform step
+      // Uniform step: each gap between adjacent snaps takes TICKS_PER_SNAP ticks
       const TICKS_PER_SNAP = 8;
 
-      let step: number;
-      if (prev > 1 || (prev === 1 && scrollUp)) {
-        // Hero zone: fixed linear speed (1.0 range / 8 ticks = 0.125)
-        step = 1.0 / TICKS_PER_SNAP;
-      } else if (prev < 0 || (prev === 0 && !scrollUp)) {
-        // Footer zone: fixed linear speed (0.4 range / 8 ticks = 0.05)
-        step = 0.4 / TICKS_PER_SNAP;
-      } else {
-        // Zoom zone (0→1): gap-based uniform step
-        let lowerIdx = 0;
-        for (let i = 0; i < SNAP_POINTS.length - 1; i++) {
-          if (prev >= SNAP_POINTS[i]) lowerIdx = i;
-        }
-        const gapIdx = scrollUp
-          ? Math.min(lowerIdx + 1, SNAP_POINTS.length - 2)
-          : lowerIdx;
-        const gapLow = SNAP_POINTS[gapIdx];
-        const gapHigh = SNAP_POINTS[gapIdx + 1] ?? SNAP_POINTS[gapIdx];
-        const gapWidth = Math.abs(gapHigh - gapLow) || 0.33;
-        step = gapWidth / TICKS_PER_SNAP;
+      // Find which gap we're in
+      let lowerIdx = 0;
+      for (let i = 0; i < SNAP_POINTS.length - 1; i++) {
+        if (prev >= SNAP_POINTS[i]) lowerIdx = i;
       }
+      const gapIdx = scrollUp
+        ? Math.min(lowerIdx + 1, SNAP_POINTS.length - 2)
+        : lowerIdx;
+      const gapLow = SNAP_POINTS[gapIdx];
+      const gapHigh = SNAP_POINTS[gapIdx + 1] ?? SNAP_POINTS[gapIdx];
+      const gapWidth = Math.abs(gapHigh - gapLow) || 0.33;
+      const step = gapWidth / TICKS_PER_SNAP;
 
       const delta = scrollUp ? step : -step;
       const next = Math.max(-0.4, Math.min(2, prev + delta));
