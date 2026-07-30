@@ -1,88 +1,48 @@
 import { animated, to, useSpring, useSpringValue } from "@react-spring/web";
 import { useEffect, useRef, useState } from "react";
 
-// ─── Debug Logger ───────────────────────────────────────────────────────────
-const DEBUG_CURSOR = true;
-function cursorLog(tag: string, data?: Record<string, unknown>) {
-  if (!DEBUG_CURSOR) return;
-  const ts = performance.now().toFixed(1);
-  console.log(`[Cursor ${ts}ms] ${tag}`, data ?? "");
-}
+// ─── Types ──────────────────────────────────────────────────────────────────
 
-// ─── Cursor Mode (discriminated union) ──────────────────────────────────────
-
-/** Face shown on the coin cursor */
 type Face = "white" | "red";
+type Icon = "prev" | "play" | "pause" | "next" | "minimize" | "maximize" | "close" | null;
 
-/** Icon identifier — null means show text label instead */
-type Icon =
-  | "prev"
-  | "play"
-  | "pause"
-  | "next"
-  | "minimize"
-  | "maximize"
-  | "close"
-  | null;
-
-interface ModeBase {
-  face: Face;
-  /** Size in px */
+interface CursorStyle {
   size: number;
+  face: Face;
   icon: Icon;
-}
-
-/** Free-floating: follows mouse position */
-interface ModeFree extends ModeBase {
-  kind: "free";
-}
-
-/** Snapped: locked to a fixed viewport coordinate */
-interface ModeSnap extends ModeBase {
-  kind: "snap";
-  x: number;
-  y: number;
-  /** Position updates instantly (no spring lag), e.g. during drag */
+  /** If set, cursor snaps to this position instead of following the mouse */
+  snapTo?: { x: number; y: number };
+  /** If true, snap position is applied immediately (no spring) */
   immediate?: boolean;
 }
 
-type CursorMode = ModeFree | ModeSnap;
+// ─── Constants ──────────────────────────────────────────────────────────────
 
-// ─── Size constants ─────────────────────────────────────────────────────────
-// Each responsive entry is [mobile, sm+] in px, matching Tailwind sm: (640px)
-
-/** Default idle cursor size */
 const IDLE_SIZE = 16;
-/** Disc hover cursor size [mobile, desktop] */
 const DISC_SIZE: [number, number] = [100, 133];
-/** Disc hover cursor size in compact (level 1) [mobile, desktop] */
 const DISC_SIZE_COMPACT: [number, number] = [48, 60];
-/** Scrub knob size */
 const SCRUB_SIZE = 12;
 
-/** Button snap cursor sizes [mobile, desktop] */
 const SNAP_SIZE: Record<string, [number, number]> = {
-  prev: [32, 40],
-  play: [32, 48],
-  pause: [32, 48],
-  next: [32, 40],
-  minimize: [40, 80],
-  maximize: [40, 80],
-  close: [40, 80],
+  prev: [36, 48],
+  play: [48, 64],
+  pause: [48, 64],
+  next: [36, 48],
+  minimize: [44, 80],
+  maximize: [44, 80],
+  close: [44, 80],
 };
 
-/** Icon sizes inside the cursor [mobile, desktop] */
 const ICON_SIZE: Record<string, [number, number]> = {
-  prev: [18, 24],
-  play: [14, 20],
-  pause: [14, 20],
-  next: [18, 24],
-  minimize: [16, 28],
-  maximize: [14, 24],
-  close: [20, 32],
+  prev: [16, 22],
+  play: [20, 28],
+  pause: [20, 28],
+  next: [16, 22],
+  minimize: [20, 30],
+  maximize: [20, 30],
+  close: [18, 28],
 };
 
-/** Pick responsive value based on viewport width */
 function pick(pair: [number, number], desktop: boolean): number {
   return desktop ? pair[1] : pair[0];
 }
@@ -90,95 +50,127 @@ function pick(pair: [number, number], desktop: boolean): number {
 // ─── Props ──────────────────────────────────────────────────────────────────
 
 interface CustomCursorProps {
-  /** Global playing state */
   isPlaying: boolean;
-  /** The disc index currently hovered, or -1 */
   hoveredDiscIndex: number;
-  /** The disc index currently at the center (playing) */
   centerDiscIndex: number;
-  /** Whether at level 1 (compact browse mode) */
   compact?: boolean;
-  /** Progress bar scrub position — null when not hovering/scrubbing track */
+  /** Scrub knob position (from TransportControls) */
   scrubPos: { x: number; y: number } | null;
-  /** Whether in player mode (progress ≈ 1) — cursor stays large even without disc hover */
-  playerMode?: boolean;
+}
+
+// ─── Style registry: target name → CursorStyle ─────────────────────────────
+
+function resolveStyle(
+  target: string | null,
+  ctx: {
+    isPlaying: boolean;
+    isActiveDisc: boolean;
+    compact: boolean;
+    desktop: boolean;
+    scrubPos: { x: number; y: number } | null;
+  },
+): CursorStyle {
+  // Priority 1: scrub (progress bar hover/drag)
+  if (target === "scrub" && ctx.scrubPos) {
+    return {
+      size: SCRUB_SIZE,
+      face: "white",
+      icon: null,
+      snapTo: ctx.scrubPos,
+      immediate: true,
+    };
+  }
+
+  // Priority 2: button snaps
+  if (target && target !== "scrub" && target !== "disc") {
+    const resolved =
+      target === "play" || target === "pause"
+        ? ctx.isPlaying
+          ? "pause"
+          : "play"
+        : target;
+
+    const size = pick(SNAP_SIZE[resolved] ?? [40, 40], ctx.desktop);
+    const face: Face = resolved === "close" || resolved === "pause" ? "red" : "white";
+    // snapTo is computed from element rect in the effect — passed via a ref
+    return { size, face, icon: resolved as Icon };
+  }
+
+  // Priority 3: disc hover
+  if (target === "disc") {
+    const sizePair = ctx.compact ? DISC_SIZE_COMPACT : DISC_SIZE;
+    const size = pick(sizePair, ctx.desktop);
+    if (ctx.isActiveDisc && ctx.isPlaying) {
+      return { size, face: "red", icon: null };
+    }
+    return { size, face: "white", icon: null };
+  }
+
+  // Priority 4: idle
+  return { size: IDLE_SIZE, face: "white", icon: null };
 }
 
 // ─── Icon renderer ──────────────────────────────────────────────────────────
 
 function CursorIcon({ icon, desktop }: { icon: Icon; desktop: boolean }) {
   if (!icon) return null;
-  const pair = ICON_SIZE[icon] ?? ([16, 16] as [number, number]);
-  const px = pick(pair, desktop);
-  const style = { width: `${px}px`, height: `${px}px` };
+  const s = pick(ICON_SIZE[icon] ?? [20, 20], desktop);
   switch (icon) {
-    case "prev":
-      return (
-        <svg viewBox="0 0 24 24" fill="currentColor" style={style}>
-          <path d="M6 6h2v12H6V6zm3.5 6l8.5 6V6l-8.5 6z" />
-        </svg>
-      );
     case "play":
       return (
-        <svg viewBox="0 0 24 24" fill="currentColor" style={style}>
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
           <path d="M8 5v14l11-7z" />
         </svg>
       );
     case "pause":
       return (
-        <svg viewBox="0 0 24 24" fill="currentColor" style={style}>
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
           <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
+        </svg>
+      );
+    case "prev":
+      return (
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
+          <path d="M6 6h2v12H6zm3.5 6 8.5 6V6z" />
         </svg>
       );
     case "next":
       return (
-        <svg viewBox="0 0 24 24" fill="currentColor" style={style}>
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="currentColor">
           <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
         </svg>
       );
     case "minimize":
       return (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          style={style}
-        >
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
           <path d="M5 12h14" />
         </svg>
       );
     case "maximize":
       return (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          style={style}
-        >
-          <rect x="4" y="4" width="16" height="16" rx="2" />
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="15 3 21 3 21 9" />
+          <polyline points="9 21 3 21 3 15" />
+          <line x1="21" y1="3" x2="14" y2="10" />
+          <line x1="3" y1="21" x2="10" y2="14" />
         </svg>
       );
     case "close":
       return (
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2.5"
-          style={style}
-        >
-          <path d="M6 6l12 12M18 6L6 18" />
+        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+          <line x1="18" y1="6" x2="6" y2="18" />
+          <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
       );
+    default:
+      return null;
   }
 }
 
 // ─── Component ──────────────────────────────────────────────────────────────
 
-/** One full rotation every N milliseconds */
 const ROTATION_PERIOD = 4000;
+const MIN_SIZE = 12;
 
 export function CustomCursor({
   isPlaying,
@@ -186,365 +178,108 @@ export function CustomCursor({
   centerDiscIndex,
   compact = false,
   scrubPos,
-  playerMode = false,
 }: CustomCursorProps) {
-  // ── Raw inputs ────────────────────────────────────────────────────────────
-  const posRef = useRef({ x: 0, y: 0 });
+  // ── Single mutable pos (mouse position) ───────────────────────────────────
   const [pos, setPos] = useState({ x: 0, y: 0 });
-  const rafRef = useRef(0);
-  const [mouseInPage, setMouseInPage] = useState(true);
-  const mouseInPageRef = useRef(true);
-  const [isTouch, setIsTouch] = useState(false);
-  const [snapEl, setSnapEl] = useState<HTMLElement | null>(null);
-  const [isDesktop, setIsDesktop] = useState(false);
+  const posRef = useRef({ x: 0, y: 0 });
+  const rafId = useRef(0);
 
-  // ── Responsive breakpoint ─────────────────────────────────────────────────
+  // ── Hovered target: the `data-cursor` value under the pointer ─────────────
+  const [target, setTarget] = useState<string | null>(null);
+  // Element ref for snap positioning (buttons)
+  const targetElRef = useRef<HTMLElement | null>(null);
+
+  // ── Visibility: hidden only on touch devices ──────────────────────────────
+  const [isTouch, setIsTouch] = useState(false);
+  const [visible, setVisible] = useState(true);
+
+  // ── Desktop breakpoint ────────────────────────────────────────────────────
+  const [isDesktop, setIsDesktop] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 640px)");
     setIsDesktop(mq.matches);
-    const onChange = () => setIsDesktop(mq.matches);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    const h = () => setIsDesktop(mq.matches);
+    mq.addEventListener("change", h);
+    return () => mq.removeEventListener("change", h);
   }, []);
 
-  // ── Mouse tracking + page visibility ────────────────────────────────────
+  // ── Pointer tracking + target detection (ONE event handler) ───────────────
   useEffect(() => {
-    // We track mouse presence via mousemove. If no move arrives for a while
-    // after a genuine document-exit event, we hide. This avoids false positives
-    // from layout reflows and spring animations that fire spurious mouseleave.
-    let hideTimer: ReturnType<typeof setTimeout> | null = null;
-    const clearHide = () => {
-      if (hideTimer !== null) {
-        clearTimeout(hideTimer);
-        hideTimer = null;
-      }
-    };
-
-    const onMove = (e: MouseEvent) => {
+    const onPointerMove = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return; // ignore touch
       posRef.current = { x: e.clientX, y: e.clientY };
-      clearHide();
-      if (!mouseInPageRef.current) {
-        mouseInPageRef.current = true;
-        setMouseInPage(true);
-        cursorLog("mouseInPage → TRUE (mousemove)");
-      }
-      if (!rafRef.current) {
-        rafRef.current = requestAnimationFrame(() => {
+      if (!rafId.current) {
+        rafId.current = requestAnimationFrame(() => {
           setPos(posRef.current);
-          rafRef.current = 0;
+          rafId.current = 0;
         });
       }
+      if (!visible) setVisible(true);
+
+      // Find the closest [data-cursor] ancestor of the event target
+      const el = (e.target as Element)?.closest?.("[data-cursor]") as HTMLElement | null;
+      const newTarget = el?.dataset.cursor ?? null;
+      targetElRef.current = el;
+      setTarget(newTarget);
     };
 
-    // When the pointer exits the document, schedule a hide after a short
-    // grace period. If a mousemove arrives before the timer (common during
-    // layout reflows), the hide is cancelled.
-    const onOut = (e: MouseEvent) => {
-      // mouseout with relatedTarget===null means pointer left the document
-      if (e.relatedTarget !== null) return;
-      // Extra guard: only consider it a real exit if the coordinate is
-      // actually outside or at the edge of the viewport. Layout reflows
-      // from spring animations can fire mouseout with null relatedTarget
-      // while the pointer is still well within the page.
-      const { clientX: x, clientY: y } = e;
-      const margin = 5;
-      const isOutside =
-        x <= margin ||
-        y <= margin ||
-        x >= window.innerWidth - margin ||
-        y >= window.innerHeight - margin;
-      if (!isOutside) {
-        cursorLog("mouseout SUPPRESSED (inside viewport)", { x, y });
-        return;
-      }
-      clearHide();
-      hideTimer = setTimeout(() => {
-        hideTimer = null;
-        mouseInPageRef.current = false;
-        setMouseInPage(false);
-        cursorLog("mouseInPage → FALSE (confirmed exit)", { x, y });
-      }, 200);
-    };
-
-    const onVisChange = () => {
-      if (document.hidden) {
-        clearHide();
-        mouseInPageRef.current = false;
-        setMouseInPage(false);
-        cursorLog("mouseInPage → FALSE (page hidden)");
+    const onPointerLeave = (e: PointerEvent) => {
+      if (e.pointerType === "touch") return;
+      // Only hide when pointer actually leaves the document
+      if (!e.relatedTarget && e.target === document.documentElement) {
+        setVisible(false);
       }
     };
 
-    window.addEventListener("mousemove", onMove);
-    document.addEventListener("mouseout", onOut);
-    document.addEventListener("visibilitychange", onVisChange);
-    return () => {
-      window.removeEventListener("mousemove", onMove);
-      document.removeEventListener("mouseout", onOut);
-      document.removeEventListener("visibilitychange", onVisChange);
-      cancelAnimationFrame(rafRef.current);
-      clearHide();
-    };
-  }, []);
-
-  // ── Touch detection ──────────────────────────────────────────────────────
-  useEffect(() => {
-    const onTouch = () => {
-      cursorLog("isTouch → TRUE (touchstart)");
-      setIsTouch(true);
-    };
-    const onMouse = () => {
-      cursorLog("isTouch → FALSE (mousemove once)");
-      setIsTouch(false);
-    };
-    window.addEventListener("touchstart", onTouch, { once: true });
-    window.addEventListener("mousemove", onMouse, { once: true });
     const onPointerDown = (e: PointerEvent) => {
-      const touch = e.pointerType === "touch";
-      cursorLog(`isTouch → ${touch} (pointerdown: ${e.pointerType})`);
-      setIsTouch(touch);
+      setIsTouch(e.pointerType === "touch");
     };
+
+    window.addEventListener("pointermove", onPointerMove);
+    document.documentElement.addEventListener("pointerleave", onPointerLeave);
     window.addEventListener("pointerdown", onPointerDown);
     return () => {
-      window.removeEventListener("touchstart", onTouch);
-      window.removeEventListener("mousemove", onMouse);
+      window.removeEventListener("pointermove", onPointerMove);
+      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
       window.removeEventListener("pointerdown", onPointerDown);
+      cancelAnimationFrame(rafId.current);
     };
-  }, []);
-
-  // ── Snap target detection (data-cursor-snap elements) ─────────────────────
-  useEffect(() => {
-    let pendingLeave: number | null = null;
-    let pendingClick: number | null = null;
-    // After a click clears a snap target, suppress new snap captures briefly
-    // to prevent the underlying element (e.g. minimize) from re-capturing.
-    let snapCooldown = false;
-    let cooldownTimer: ReturnType<typeof setTimeout> | null = null;
-    const startCooldown = () => {
-      snapCooldown = true;
-      if (cooldownTimer) clearTimeout(cooldownTimer);
-      cooldownTimer = setTimeout(() => {
-        snapCooldown = false;
-        cooldownTimer = null;
-        cursorLog("snap cooldown ENDED");
-      }, 400);
-    };
-
-    const onEnter = (e: MouseEvent) => {
-      if (snapCooldown) return;
-      const target = e.target;
-      if (!(target instanceof Element)) return;
-      const el = target.closest<HTMLElement>("[data-cursor-snap]");
-      if (!el) return;
-      if (pendingLeave !== null) {
-        cancelAnimationFrame(pendingLeave);
-        pendingLeave = null;
-      }
-      cursorLog("snapEl SET (mouseenter)", {
-        attr: el.dataset.cursorSnap,
-        tag: el.tagName,
-      });
-      setSnapEl(el);
-    };
-    const onLeave = (e: MouseEvent) => {
-      const target = e.target;
-      if (!(target instanceof Element)) return;
-      const el = target.closest<HTMLElement>("[data-cursor-snap]");
-      if (!el) return;
-      const related = e.relatedTarget as HTMLElement | null;
-      if (related && el.contains(related)) return;
-      cursorLog("snapEl mouseleave fired", {
-        attr: el.dataset.cursorSnap,
-        relatedTag: related?.tagName ?? null,
-      });
-      pendingLeave = requestAnimationFrame(() => {
-        pendingLeave = null;
-        if (el.isConnected) {
-          const rect = el.getBoundingClientRect();
-          const { x, y } = posRef.current;
-          if (
-            x >= rect.left &&
-            x <= rect.right &&
-            y >= rect.top &&
-            y <= rect.bottom
-          ) {
-            cursorLog("snapEl leave CANCELLED (still inside rect)");
-            return;
-          }
-        }
-        cursorLog("snapEl CLEARED (mouseleave)", {
-          attr: el.dataset.cursorSnap,
-        });
-        setSnapEl(null);
-      });
-    };
-    const onClick = (e: MouseEvent) => {
-      const target = e.target;
-      if (!(target instanceof Element)) return;
-      const el = target.closest<HTMLElement>("[data-cursor-snap]");
-      if (!el) return;
-      cursorLog("snapEl CLICK detected", {
-        attr: el.dataset.cursorSnap,
-      });
-      let polls = 0;
-      const poll = () => {
-        polls++;
-        if (!el.isConnected) {
-          cursorLog("snapEl CLEARED (click poll: disconnected)", { polls });
-          setSnapEl(null);
-          startCooldown();
-          return;
-        }
-        const style = getComputedStyle(el);
-        if (
-          style.pointerEvents === "none" ||
-          style.visibility === "hidden" ||
-          style.display === "none" ||
-          Number.parseFloat(style.opacity) < 0.1
-        ) {
-          cursorLog("snapEl CLEARED (click poll: inactive)", {
-            polls,
-            pointerEvents: style.pointerEvents,
-            opacity: style.opacity,
-            visibility: style.visibility,
-            display: style.display,
-          });
-          setSnapEl(null);
-          startCooldown();
-          return;
-        }
-        if (polls < 18) {
-          pendingClick = requestAnimationFrame(poll);
-        } else {
-          cursorLog("snapEl click poll EXHAUSTED (18 frames)", {
-            pointerEvents: style.pointerEvents,
-            opacity: style.opacity,
-          });
-        }
-      };
-      pendingClick = requestAnimationFrame(poll);
-    };
-    document.addEventListener("mouseenter", onEnter, true);
-    document.addEventListener("mouseleave", onLeave, true);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      document.removeEventListener("mouseenter", onEnter, true);
-      document.removeEventListener("mouseleave", onLeave, true);
-      document.removeEventListener("click", onClick, true);
-      if (pendingLeave !== null) cancelAnimationFrame(pendingLeave);
-      if (pendingClick !== null) cancelAnimationFrame(pendingClick);
-      if (cooldownTimer) clearTimeout(cooldownTimer);
-    };
-  }, []);
+  }, [visible]);
 
   // ── Hide system cursor ────────────────────────────────────────────────────
   useEffect(() => {
     document.body.style.cursor = "none";
-    return () => {
-      document.body.style.cursor = "";
-    };
+    return () => { document.body.style.cursor = ""; };
   }, []);
 
-  // ── Derive CursorMode ─────────────────────────────────────────────────────
-  // Auto-clear snapEl if the element is no longer visible/interactive
-  // (e.g. close button fades out after click via pointer-events:none + opacity:0)
-  const effectiveSnapEl = (() => {
-    if (!snapEl) return null;
-    if (!snapEl.isConnected) {
-      cursorLog("effectiveSnapEl: CLEARED (disconnected)", {
-        attr: snapEl.dataset.cursorSnap,
-      });
-      setSnapEl(null);
-      return null;
-    }
-    const style = getComputedStyle(snapEl);
-    if (
-      style.pointerEvents === "none" ||
-      style.visibility === "hidden" ||
-      style.display === "none" ||
-      Number.parseFloat(style.opacity) < 0.1
-    ) {
-      cursorLog("effectiveSnapEl: CLEARED (style check)", {
-        attr: snapEl.dataset.cursorSnap,
-        pointerEvents: style.pointerEvents,
-        opacity: style.opacity,
-        visibility: style.visibility,
-        display: style.display,
-      });
-      setSnapEl(null);
-      return null;
-    }
-    return snapEl;
-  })();
+  // ── Derive cursor style via pattern matching ──────────────────────────────
+  const isActiveDisc = hoveredDiscIndex >= 0 && hoveredDiscIndex === centerDiscIndex;
 
-  const visible = mouseInPage && !isTouch;
-  const isHoveringDisc = hoveredDiscIndex >= 0;
-  const isHoveringActiveDisc =
-    isHoveringDisc && hoveredDiscIndex === centerDiscIndex;
-  const mode: CursorMode = deriveMode({
+  // Map hoveredDiscIndex to target (disc hover comes from VinylDisc mouseenter)
+  const effectiveTarget = hoveredDiscIndex >= 0 && target === null ? "disc" : target;
+
+  const style = resolveStyle(effectiveTarget, {
     isPlaying,
-    isHoveringDisc,
-    isHoveringActiveDisc,
+    isActiveDisc,
     compact,
-    isDesktop,
-    snapEl: effectiveSnapEl,
+    desktop: isDesktop,
     scrubPos,
-    playerMode,
   });
 
-  // DEBUG: log every render's final state
-  const prevStateRef = useRef({
-    visible,
-    modeKind: mode.kind,
-    modeSize: mode.size,
-    mouseInPage,
-    isTouch,
-    snapAttr: "" as string | undefined,
-  });
-  const currentSnapAttr = effectiveSnapEl?.dataset.cursorSnap;
-  if (
-    prevStateRef.current.visible !== visible ||
-    prevStateRef.current.modeKind !== mode.kind ||
-    prevStateRef.current.modeSize !== mode.size ||
-    prevStateRef.current.mouseInPage !== mouseInPage ||
-    prevStateRef.current.isTouch !== isTouch ||
-    prevStateRef.current.snapAttr !== currentSnapAttr
-  ) {
-    cursorLog("STATE CHANGE", {
-      visible,
-      mouseInPage,
-      isTouch,
-      "mode.kind": mode.kind,
-      "mode.size": mode.size,
-      "mode.face": mode.face,
-      "mode.icon": mode.icon,
-      snapAttr: currentSnapAttr ?? null,
-      hoveredDiscIndex,
-      centerDiscIndex,
-    });
-    prevStateRef.current = {
-      visible,
-      modeKind: mode.kind,
-      modeSize: mode.size,
-      mouseInPage,
-      isTouch,
-      snapAttr: currentSnapAttr,
-    };
+  // Compute snap position for button targets
+  let snapPos: { x: number; y: number } | undefined = style.snapTo;
+  if (!snapPos && targetElRef.current && effectiveTarget && effectiveTarget !== "disc" && effectiveTarget !== "scrub") {
+    const rect = targetElRef.current.getBoundingClientRect();
+    snapPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
 
+  const isSnapped = !!snapPos;
+  const targetX = snapPos?.x ?? pos.x;
+  const targetY = snapPos?.y ?? pos.y;
+  const targetSize = isTouch ? 0 : Math.max(style.size, MIN_SIZE);
+  const targetOpacity = isTouch || !visible ? 0 : 1;
+
   // ── Springs ───────────────────────────────────────────────────────────────
-  const isSnapped = mode.kind === "snap";
-  const targetX = isSnapped ? mode.x : pos.x;
-  const targetY = isSnapped ? mode.y : pos.y;
-  const immediatePos = isSnapped && mode.immediate;
-
-  // Always show at least a minimum dot (12px). The mouseInPage detection is
-  // too unreliable (spurious mouseout during layout reflows) to hide entirely.
-  // The cursor is only hidden for touch devices (isTouch).
-  const MIN_DOT = 12;
-  const targetSize = isTouch ? 0 : Math.max(mode.size, MIN_DOT);
-  const targetOpacity = isTouch ? 0 : 1;
-
   const spring = useSpring({
     size: targetSize,
     opacity: targetOpacity,
@@ -552,18 +287,17 @@ export function CustomCursor({
     posY: targetY,
     config: { mass: 1, tension: 320, friction: 22 },
     immediate: (key: string) =>
-      immediatePos ? key === "posX" || key === "posY" : false,
+      style.immediate ? key === "posX" || key === "posY" : false,
   });
 
-  // Flip spring: 180 = red face, 0 = white face
   const flipSpring = useSpring({
-    rotateY: mode.face === "red" ? 180 : 0,
+    rotateY: style.face === "red" ? 180 : 0,
     config: { mass: 1, tension: 280, friction: 24 },
   });
 
-  // Text rotation (spinning PLAY text on disc hover)
-  const showText = isHoveringDisc && !isSnapped && mode.icon === null;
-  const shouldSpin = showText && mode.face === "white";
+  // ── PLAY text rotation ────────────────────────────────────────────────────
+  const showText = effectiveTarget === "disc" && !isSnapped && style.icon === null;
+  const shouldSpin = showText && style.face === "white";
   const rotationRef = useRef(0);
   const playStartRef = useRef(0);
   const animFrameRef = useRef(0);
@@ -618,12 +352,12 @@ export function CustomCursor({
           className="absolute inset-0 rounded-full bg-white flex items-center justify-center text-black"
           style={{ backfaceVisibility: "hidden" }}
         >
-          {mode.face === "white" && mode.icon ? (
+          {style.face === "white" && style.icon ? (
             <div
               className="flex items-center justify-center w-full h-full"
               style={{ transform: "rotate(-45deg)" }}
             >
-              <CursorIcon icon={mode.icon} desktop={isDesktop} />
+              <CursorIcon icon={style.icon} desktop={isDesktop} />
             </div>
           ) : (
             <animated.span
@@ -647,12 +381,12 @@ export function CustomCursor({
             background: "oklch(0.5 0.25 25)",
           }}
         >
-          {mode.face === "red" && mode.icon ? (
+          {style.face === "red" && style.icon ? (
             <div
               className="flex items-center justify-center w-full h-full"
               style={{ transform: "rotate(-45deg)" }}
             >
-              <CursorIcon icon={mode.icon} desktop={isDesktop} />
+              <CursorIcon icon={style.icon} desktop={isDesktop} />
             </div>
           ) : (
             <animated.span
@@ -669,96 +403,4 @@ export function CustomCursor({
       </animated.div>
     </animated.div>
   );
-}
-
-// ─── Mode derivation (pure) ─────────────────────────────────────────────────
-
-interface DeriveInput {
-  isPlaying: boolean;
-  isHoveringDisc: boolean;
-  isHoveringActiveDisc: boolean;
-  compact: boolean;
-  isDesktop: boolean;
-  snapEl: HTMLElement | null;
-  scrubPos: { x: number; y: number } | null;
-  playerMode: boolean;
-}
-
-function deriveMode(input: DeriveInput): CursorMode {
-  const {
-    isPlaying,
-    isHoveringDisc,
-    isHoveringActiveDisc,
-    compact,
-    isDesktop,
-    snapEl,
-    scrubPos,
-    playerMode,
-  } = input;
-
-  // Priority 1: progress bar scrub/hover — tiny dot locked to knob position
-  if (scrubPos) {
-    return {
-      kind: "snap",
-      face: "white",
-      size: SCRUB_SIZE,
-      icon: null,
-      x: scrubPos.x,
-      y: scrubPos.y,
-      immediate: true,
-    };
-  }
-
-  // Priority 2: snapped to a button
-  if (snapEl) {
-    const attr = snapEl.dataset.cursorSnap;
-    // "scrub" attr without active scrubPos means not hovering track — fall through
-    if (attr === "scrub") {
-      // fall through to disc/idle
-    } else {
-      const resolved =
-        attr === "play" || attr === "pause"
-          ? isPlaying
-            ? "pause"
-            : "play"
-          : attr;
-
-      const rect = snapEl.getBoundingClientRect();
-      const size = pick(SNAP_SIZE[resolved as string] ?? [40, 40], isDesktop);
-      const face: Face =
-        resolved === "close" || resolved === "pause" ? "red" : "white";
-
-      return {
-        kind: "snap",
-        face,
-        size,
-        icon: resolved as Icon,
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      };
-    }
-  }
-
-  // Priority 3: hovering a disc — large circle with PLAY/PAUSE text
-  if (isHoveringDisc) {
-    const sizePair = compact ? DISC_SIZE_COMPACT : DISC_SIZE;
-    const size = pick(sizePair, isDesktop);
-    if (isHoveringActiveDisc && isPlaying) {
-      return { kind: "free", face: "red", size, icon: null };
-    }
-    return { kind: "free", face: "white", size, icon: null };
-  }
-
-  // Priority 4: in player mode, keep disc-hover size so cursor doesn't vanish
-  // after leaving the progress bar or other UI elements
-  if (playerMode) {
-    const size = pick(DISC_SIZE, isDesktop);
-    if (isPlaying) {
-      return { kind: "free", face: "red", size, icon: null };
-    }
-    return { kind: "free", face: "white", size, icon: null };
-  }
-
-  // Priority 5: default idle — small white dot
-  return { kind: "free", face: "white", size: IDLE_SIZE, icon: null };
 }

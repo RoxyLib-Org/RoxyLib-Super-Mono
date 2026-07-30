@@ -188,7 +188,7 @@ export function TransportControls({
         <div
           ref={trackRef}
           className="flex-1 h-5 flex items-center cursor-none"
-          data-cursor-snap="scrub"
+          data-cursor="scrub"
           onMouseEnter={handleTrackEnter}
           onMouseLeave={handleTrackLeave}
           onPointerDown={handlePointerDown}
@@ -224,7 +224,7 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPrev}
-          data-cursor-snap="prev"
+          data-cursor="prev"
           className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-none"
           aria-label="Previous track"
         >
@@ -242,7 +242,7 @@ export function TransportControls({
         <button
           type="button"
           onClick={onPlayPause}
-          data-cursor-snap={isPlaying ? "pause" : "play"}
+          data-cursor={isPlaying ? "pause" : "play"}
           className="w-8 h-8 sm:w-12 sm:h-12 rounded-full border-2 border-white/40 flex items-center justify-center text-white hover:border-white/80 transition-colors cursor-none"
           aria-label={isPlaying ? "Pause" : "Play"}
         >
@@ -272,7 +272,7 @@ export function TransportControls({
         <button
           type="button"
           onClick={onNext}
-          data-cursor-snap="next"
+          data-cursor="next"
           className="w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center text-white/70 hover:text-white transition-colors cursor-none"
           aria-label="Next track"
         >

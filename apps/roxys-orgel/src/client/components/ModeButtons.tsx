@@ -51,7 +51,7 @@ export function ModeButtons({
           type="button"
           onClick={onMinimize}
           aria-label="Minimize"
-          data-cursor-snap="minimize"
+          data-cursor="minimize"
           className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-none shadow-md"
         >
           <svg
@@ -73,7 +73,7 @@ export function ModeButtons({
           type="button"
           onClick={onMaximize}
           aria-label="Maximize"
-          data-cursor-snap="maximize"
+          data-cursor="maximize"
           className="w-10 h-10 sm:w-20 sm:h-20 rounded-full bg-white/90 hover:bg-white flex items-center justify-center text-black/70 hover:text-black transition-colors cursor-none shadow-md"
         >
           <svg
@@ -97,7 +97,7 @@ export function ModeButtons({
         type="button"
         onClick={onClosePlayer}
         aria-label="Close player"
-        data-cursor-snap="close"
+        data-cursor="close"
         className="absolute top-0 left-0 w-10 h-10 sm:w-20 sm:h-20 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-none"
         style={{
           opacity: playerVis,

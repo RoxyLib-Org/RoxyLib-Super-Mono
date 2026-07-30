@@ -1058,7 +1058,6 @@ export function VinylGrid() {
         centerDiscIndex={centerDiscIndex}
         compact={progressRef.current === 0}
         scrubPos={scrubPos}
-        playerMode={progressRef.current >= 0.9 && progressRef.current <= 1.1}
       />
 
       {/* Loading overlay — preloads cover images */}
