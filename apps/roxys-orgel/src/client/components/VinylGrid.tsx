@@ -1,6 +1,7 @@
 import { animated, type SpringValue, useSpringValue } from "@react-spring/web";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useAudioPlayer } from "../hooks/useAudioPlayer";
+import { enablePlaybackDebug, playbackLog } from "../hooks/usePlaybackLogger";
 import { trpc } from "../trpc";
 import { AuroraBackground } from "./AuroraBackground";
 import { CustomCursor } from "./CustomCursor";
@@ -66,17 +67,26 @@ const DISC_COUNT = 61;
 const SNAP_POINTS: readonly number[] = [-0.4, 0, 0.33, 0.66, 1, 2];
 
 function snapToLevel(value: number): number {
-  // For hero/footer boundaries: only snap if clearly past threshold
-  if (value > 1.5) return 2;
-  if (value < -0.25) return -0.4;
-  // Snap to nearest level
-  let closest = SNAP_POINTS[0];
-  let minDist = Math.abs(value - SNAP_POINTS[0]);
-  for (let i = 1; i < SNAP_POINTS.length; i++) {
-    const d = Math.abs(value - SNAP_POINTS[i]);
+  // Hero zone (1→2): free scroll, only snap at the two edges
+  if (value > 1) {
+    if (value > 1.9) return 2; // snap to top edge
+    if (value < 1.1) return 1; // snap back to player
+    return value; // free — no snap
+  }
+  // Footer zone (0→-0.4): free scroll, only snap at edges
+  if (value < 0) {
+    if (value < -0.32) return -0.4; // snap to bottom edge
+    if (value > -0.08) return 0; // snap back to browse
+    return value; // free — no snap
+  }
+  // Zoom zone (0→1): snap to nearest level
+  let closest = 0;
+  let minDist = Math.abs(value);
+  for (const sp of [0, 0.33, 0.66, 1]) {
+    const d = Math.abs(value - sp);
     if (d < minDist) {
       minDist = d;
-      closest = SNAP_POINTS[i];
+      closest = sp;
     }
   }
   return closest;
@@ -162,6 +172,14 @@ export function VinylGrid() {
   );
   const viewportScale = useViewportScale();
 
+  // Expose debug toggle on window for easy console access
+  useEffect(() => {
+    (window as unknown as Record<string, unknown>).__enablePlaybackDebug =
+      enablePlaybackDebug;
+    // Auto-enable in dev
+    if (import.meta.env.DEV) enablePlaybackDebug();
+  }, []);
+
   // ── State ──────────────────────────────────────────────────────────────────
   // progress (spring 0→1) is the SINGLE zoom source of truth.
   // Derived: isPlayer = progress ≈ 1, isLevel1 = progress ≈ 0
@@ -237,7 +255,8 @@ export function VinylGrid() {
     };
   }, [activeDisc, tracks, duration, lyricsQuery.data]);
 
-  // ── Play track synchronously (must be called from user gesture context) ───
+  // ── Play/load track helpers ────────────────────────────────────────────────
+  /** Load and immediately play a track (for explicit user play actions) */
   const playTrack = useCallback(
     (index: number) => {
       if (index < 0 || tracks.length === 0) return;
@@ -250,6 +269,21 @@ export function VinylGrid() {
       });
     },
     [tracks, audio.loadAndPlay],
+  );
+
+  /** Load a track without starting playback (for switch-while-paused) */
+  const loadTrack = useCallback(
+    (index: number) => {
+      if (index < 0 || tracks.length === 0) return;
+      const track = tracks[index % tracks.length];
+      audio.load({
+        r2Key: track.r2Key,
+        title: track.title,
+        artistName: track.artist,
+        albumTitle: track.album,
+      });
+    },
+    [tracks, audio.load],
   );
 
   const offsetRef = useRef([0, 0]);
@@ -317,9 +351,12 @@ export function VinylGrid() {
   const play = useCallback(() => audio.play(), [audio.play]);
   const togglePlay = useCallback(() => {
     if (!audio.hasSrc && tracks.length > 0) {
-      // Cold start: no track loaded — load the active disc and play
       const idx = activeDiscRef.current;
       const track = tracks[idx >= 0 ? idx % tracks.length : 0];
+      playbackLog(
+        "coldStart",
+        `cold start — loading disc ${idx >= 0 ? idx : 0} "${track.title}"`,
+      );
       audio.loadAndPlay({
         r2Key: track.r2Key,
         title: track.title,
@@ -328,8 +365,13 @@ export function VinylGrid() {
       });
       return;
     }
+    playbackLog(
+      "togglePlay",
+      `toggle (currently ${audio.isPlaying ? "playing" : "paused"})`,
+      { activeDisc: activeDiscRef.current },
+    );
     audio.toggle();
-  }, [audio.toggle, audio.loadAndPlay, audio.hasSrc, tracks]);
+  }, [audio.toggle, audio.loadAndPlay, audio.hasSrc, audio.isPlaying, tracks]);
 
   const resetElapsed = useCallback(() => {
     audio.seek(0);
@@ -344,15 +386,28 @@ export function VinylGrid() {
     [audio.seek, elapsedSpring],
   );
 
-  // Switch to a new disc: if it's different from current, reset and play from 0
+  // Switch to a new disc: if different from current, reset elapsed.
+  // Respects current playback state: if paused → stay paused; if playing → play new track.
   const switchDisc = useCallback(
     (index: number) => {
-      if (index === activeDiscRef.current) return;
+      if (index === activeDiscRef.current) {
+        playbackLog("switchDisc", `skip — already active disc ${index}`);
+        return;
+      }
+      const wasPlaying = audio.isPlaying;
+      playbackLog("switchDisc", `${activeDiscRef.current} → ${index}`, {
+        progress: progressRef.current,
+        wasPlaying,
+      });
       setActiveDisc(index);
       resetElapsed();
-      playTrack(index);
+      if (wasPlaying) {
+        playTrack(index);
+      } else {
+        loadTrack(index);
+      }
     },
-    [resetElapsed, playTrack],
+    [resetElapsed, playTrack, loadTrack, audio.isPlaying],
   );
 
   // ── Helpers ────────────────────────────────────────────────────────────────
@@ -428,9 +483,11 @@ export function VinylGrid() {
         : findNearestDisc(coords, offsetRef.current[0], offsetRef.current[1]);
     panToDisc(target);
     enterPlayerMode(target);
-    // If same disc is already active, just resume; otherwise effect handles it
-    if (target === activeDisc) play();
-  }, [activeDisc, coords, panToDisc, enterPlayerMode, play]);
+    // If no track loaded yet, just load (don't auto-play)
+    if (activeDisc < 0) {
+      loadTrack(target);
+    }
+  }, [activeDisc, coords, panToDisc, enterPlayerMode, loadTrack]);
 
   const handleClosePlayer = useCallback(() => {
     exitPlayerMode();
@@ -441,6 +498,11 @@ export function VinylGrid() {
     clearTimeout(snapTimerRef.current);
     snapTimerRef.current = window.setTimeout(() => {
       const snapped = snapToLevel(progressRef.current);
+      playbackLog(
+        "snap",
+        `progress ${progressRef.current.toFixed(2)} → snap ${snapped}`,
+        { activeDisc: activeDiscRef.current },
+      );
       progressRef.current = snapped;
       savedProgressRef.current = snapped;
       progress.start(snapped);
@@ -454,6 +516,7 @@ export function VinylGrid() {
                 offsetRef.current[0],
                 offsetRef.current[1],
               );
+        playbackLog("snap", `snapped to player → switchDisc(${target})`);
         panToDisc(target);
         switchDisc(target);
       }
@@ -466,8 +529,17 @@ export function VinylGrid() {
       const currentActive = activeDiscRef.current;
       const isLevel1 = progressRef.current === 0;
 
+      playbackLog("click", `disc ${index}`, {
+        currentActive,
+        isLevel1,
+        progress: progressRef.current,
+      });
+
       if (isLevel1) {
-        // Level 1 browse: click → select disc, start playing, jump to level 3
+        playbackLog(
+          "click",
+          `browse click → select disc ${index}, jump to 0.66`,
+        );
         panToDisc(index);
         setActiveDisc(index);
         resetElapsed();
@@ -479,12 +551,12 @@ export function VinylGrid() {
       }
 
       if (index === currentActive) {
-        // Click the active disc → toggle play/pause
+        playbackLog("click", `same disc — togglePlay`);
         togglePlay();
         return;
       }
 
-      // Click a different disc → switch to it, start playing from 0
+      playbackLog("click", `switch ${currentActive} → ${index}`);
       panToDisc(index);
       setActiveDisc(index);
       resetElapsed();
@@ -496,6 +568,7 @@ export function VinylGrid() {
   // ── Prev / Next ────────────────────────────────────────────────────────────
   const handlePrev = useCallback(() => {
     const prev = (activeDisc - 1 + coords.length) % coords.length;
+    playbackLog("prev", `disc ${activeDisc} → ${prev}`);
     panToDisc(prev);
     setActiveDisc(prev);
     resetElapsed();
@@ -504,6 +577,7 @@ export function VinylGrid() {
 
   const handleNext = useCallback(() => {
     const next = (activeDisc + 1) % coords.length;
+    playbackLog("next", `disc ${activeDisc} → ${next}`);
     panToDisc(next);
     setActiveDisc(next);
     resetElapsed();
@@ -583,11 +657,18 @@ export function VinylGrid() {
       const isLevel1 =
         savedProgressRef.current === 0 || progressRef.current === 0;
 
+      playbackLog("drag", `mouseUp drag-end`, {
+        isLevel1,
+        progress: progressRef.current,
+        saved: savedProgressRef.current,
+      });
+
       if (isLevel1) {
         clampOffset();
         updateCenter();
       } else {
         const snapped = snapToNearest();
+        playbackLog("drag", `drag-end → switchDisc(${snapped})`);
         switchDisc(snapped);
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
@@ -613,23 +694,29 @@ export function VinylGrid() {
       const prev = progressRef.current;
 
       // Find current position between snap points and apply uniform step
-      // Each gap between adjacent snaps takes ~8 ticks to cross
       const TICKS_PER_SNAP = 8;
 
-      // Find which gap we're in
-      let lowerIdx = 0;
-      for (let i = 0; i < SNAP_POINTS.length - 1; i++) {
-        if (prev >= SNAP_POINTS[i]) lowerIdx = i;
+      let step: number;
+      if (prev > 1 || (prev === 1 && scrollUp)) {
+        // Hero zone: fixed linear speed (1.0 range / 8 ticks = 0.125)
+        step = 1.0 / TICKS_PER_SNAP;
+      } else if (prev < 0 || (prev === 0 && !scrollUp)) {
+        // Footer zone: fixed linear speed (0.4 range / 8 ticks = 0.05)
+        step = 0.4 / TICKS_PER_SNAP;
+      } else {
+        // Zoom zone (0→1): gap-based uniform step
+        let lowerIdx = 0;
+        for (let i = 0; i < SNAP_POINTS.length - 1; i++) {
+          if (prev >= SNAP_POINTS[i]) lowerIdx = i;
+        }
+        const gapIdx = scrollUp
+          ? Math.min(lowerIdx + 1, SNAP_POINTS.length - 2)
+          : lowerIdx;
+        const gapLow = SNAP_POINTS[gapIdx];
+        const gapHigh = SNAP_POINTS[gapIdx + 1] ?? SNAP_POINTS[gapIdx];
+        const gapWidth = Math.abs(gapHigh - gapLow) || 0.33;
+        step = gapWidth / TICKS_PER_SNAP;
       }
-
-      // Calculate the step size based on the current gap width
-      const gapIdx = scrollUp
-        ? Math.min(lowerIdx + 1, SNAP_POINTS.length - 2) // gap we're entering when going up
-        : lowerIdx; // gap we're in when going down
-      const gapLow = SNAP_POINTS[gapIdx];
-      const gapHigh = SNAP_POINTS[gapIdx + 1] ?? SNAP_POINTS[gapIdx];
-      const gapWidth = Math.abs(gapHigh - gapLow) || 0.33;
-      const step = gapWidth / TICKS_PER_SNAP;
 
       const delta = scrollUp ? step : -step;
       const next = Math.max(-0.4, Math.min(2, prev + delta));
@@ -769,6 +856,7 @@ export function VinylGrid() {
       offsetY,
       updateCenter,
       viewportScale,
+      switchDisc,
     ],
   );
 
@@ -802,11 +890,19 @@ export function VinylGrid() {
       // Drag end
       const isLevel1 =
         savedProgressRef.current === 0 || progressRef.current === 0;
+
+      playbackLog("drag", `touchEnd drag-end`, {
+        isLevel1,
+        progress: progressRef.current,
+        saved: savedProgressRef.current,
+      });
+
       if (isLevel1) {
         clampOffset();
         updateCenter();
       } else {
         const snapped = snapToNearest();
+        playbackLog("drag", `touch drag-end → switchDisc(${snapped})`);
         switchDisc(snapped);
         progressRef.current = savedProgressRef.current;
         progress.start(savedProgressRef.current);
@@ -907,10 +1003,9 @@ export function VinylGrid() {
 
         {/* UI overlays — hidden when entering footer zone */}
         <animated.div
-          className="absolute inset-0 z-30 pointer-events-auto"
+          className="absolute inset-0 z-30 pointer-events-none"
           style={{
             opacity: progress.to((p) => (p < 0 ? Math.max(0, 1 + p * 10) : 1)),
-            pointerEvents: progress.to((p) => (p < -0.1 ? "none" : "auto")),
           }}
         >
           <ModeButtons
@@ -963,6 +1058,7 @@ export function VinylGrid() {
         centerDiscIndex={centerDiscIndex}
         compact={progressRef.current === 0}
         scrubPos={scrubPos}
+        playerMode={progressRef.current >= 0.9}
       />
 
       {/* Loading overlay — preloads cover images */}

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { encodeId } from "@/shared/encode-id";
+import { playbackLog } from "./usePlaybackLogger";
 
 export interface AudioTrack {
   r2Key: string;
@@ -51,21 +52,32 @@ export function useAudioPlayer(): AudioPlayer {
     audioRef.current = audio;
 
     audio.addEventListener("loadedmetadata", () => {
+      playbackLog("audio", "loadedmetadata", {
+        duration: audio.duration,
+        src: audio.src.split("/").pop(),
+      });
       setDuration(audio.duration);
     });
 
     audio.addEventListener("ended", () => {
+      playbackLog("audio", "track ended — resetting");
       setIsPlaying(false);
       setCurrentTime(0);
       onEndedRef.current?.();
     });
 
     audio.addEventListener("canplay", () => {
+      playbackLog("audio", "canplay", {
+        playOnLoad: playOnLoadRef.current,
+        src: audio.src.split("/").pop(),
+      });
       if (playOnLoadRef.current) {
         playOnLoadRef.current = false;
         audio.play().then(
           () => setIsPlaying(true),
-          () => {}, // autoplay blocked
+          () => {
+            playbackLog("audio", "autoplay blocked on canplay");
+          },
         );
       }
     });
@@ -94,14 +106,26 @@ export function useAudioPlayer(): AudioPlayer {
 
   const play = useCallback(() => {
     const audio = audioRef.current;
-    if (!audio?.src) return;
+    if (!audio?.src) {
+      playbackLog("audio", "play() called but no src");
+      return;
+    }
+    playbackLog("audio", "play()", {
+      src: audio.src.split("/").pop(),
+      currentTime: audio.currentTime,
+    });
     audio.play().then(
       () => setIsPlaying(true),
-      () => {}, // autoplay blocked — ignore
+      () => {
+        playbackLog("audio", "play() rejected (autoplay blocked)");
+      },
     );
   }, []);
 
   const pause = useCallback(() => {
+    playbackLog("audio", "pause()", {
+      currentTime: audioRef.current?.currentTime,
+    });
     audioRef.current?.pause();
     setIsPlaying(false);
   }, []);
@@ -119,6 +143,7 @@ export function useAudioPlayer(): AudioPlayer {
   const seek = useCallback((time: number) => {
     const audio = audioRef.current;
     if (audio) {
+      playbackLog("seek", `seek to ${time.toFixed(2)}s`);
       audio.currentTime = time;
       setCurrentTime(time);
     }
@@ -128,13 +153,17 @@ export function useAudioPlayer(): AudioPlayer {
     const audio = audioRef.current;
     if (!audio) return;
     const url = `/api/audio/${encodeId(track.r2Key)}`;
-    // Only reload if different track
     if (!audio.src.endsWith(url)) {
+      playbackLog("audio", `load "${track.title}"`, {
+        url: url.split("/").pop(),
+      });
       audio.src = url;
       audio.load();
       setHasSrc(true);
       setCurrentTime(0);
       setDuration(0);
+    } else {
+      playbackLog("audio", `load "${track.title}" — same track, skip`);
     }
   }, []);
 
@@ -143,6 +172,12 @@ export function useAudioPlayer(): AudioPlayer {
     if (!audio) return;
     const url = `/api/audio/${encodeId(track.r2Key)}`;
     const isSameTrack = audio.src.endsWith(url);
+
+    playbackLog("audio", `loadAndPlay "${track.title}"`, {
+      isSameTrack,
+      url: url.split("/").pop(),
+      prevSrc: audio.src.split("/").pop(),
+    });
 
     if (!isSameTrack) {
       audio.src = url;
@@ -156,8 +191,12 @@ export function useAudioPlayer(): AudioPlayer {
     setDuration(isSameTrack ? audio.duration || 0 : 0);
 
     audio.play().then(
-      () => setIsPlaying(true),
       () => {
+        playbackLog("audio", "play started");
+        setIsPlaying(true);
+      },
+      () => {
+        playbackLog("audio", "play rejected — setting playOnLoad");
         if (!isSameTrack) playOnLoadRef.current = true;
       },
     );

@@ -100,6 +100,8 @@ interface CustomCursorProps {
   compact?: boolean;
   /** Progress bar scrub position — null when not hovering/scrubbing track */
   scrubPos: { x: number; y: number } | null;
+  /** Whether in player mode (progress ≈ 1) — cursor stays large even without disc hover */
+  playerMode?: boolean;
 }
 
 // ─── Icon renderer ──────────────────────────────────────────────────────────
@@ -184,6 +186,7 @@ export function CustomCursor({
   centerDiscIndex,
   compact = false,
   scrubPos,
+  playerMode = false,
 }: CustomCursorProps) {
   // ── Raw inputs ────────────────────────────────────────────────────────────
   const posRef = useRef({ x: 0, y: 0 });
@@ -486,10 +489,18 @@ export function CustomCursor({
     isDesktop,
     snapEl: effectiveSnapEl,
     scrubPos,
+    playerMode,
   });
 
   // DEBUG: log every render's final state
-  const prevStateRef = useRef({ visible, modeKind: mode.kind, modeSize: mode.size, mouseInPage, isTouch, snapAttr: "" as string | undefined });
+  const prevStateRef = useRef({
+    visible,
+    modeKind: mode.kind,
+    modeSize: mode.size,
+    mouseInPage,
+    isTouch,
+    snapAttr: "" as string | undefined,
+  });
   const currentSnapAttr = effectiveSnapEl?.dataset.cursorSnap;
   if (
     prevStateRef.current.visible !== visible ||
@@ -511,9 +522,15 @@ export function CustomCursor({
       hoveredDiscIndex,
       centerDiscIndex,
     });
-    prevStateRef.current = { visible, modeKind: mode.kind, modeSize: mode.size, mouseInPage, isTouch, snapAttr: currentSnapAttr };
+    prevStateRef.current = {
+      visible,
+      modeKind: mode.kind,
+      modeSize: mode.size,
+      mouseInPage,
+      isTouch,
+      snapAttr: currentSnapAttr,
+    };
   }
-
 
   // ── Springs ───────────────────────────────────────────────────────────────
   const isSnapped = mode.kind === "snap";
@@ -664,6 +681,7 @@ interface DeriveInput {
   isDesktop: boolean;
   snapEl: HTMLElement | null;
   scrubPos: { x: number; y: number } | null;
+  playerMode: boolean;
 }
 
 function deriveMode(input: DeriveInput): CursorMode {
@@ -675,6 +693,7 @@ function deriveMode(input: DeriveInput): CursorMode {
     isDesktop,
     snapEl,
     scrubPos,
+    playerMode,
   } = input;
 
   // Priority 1: progress bar scrub/hover — tiny dot locked to knob position
@@ -730,6 +749,16 @@ function deriveMode(input: DeriveInput): CursorMode {
     return { kind: "free", face: "white", size, icon: null };
   }
 
-  // Priority 4: default idle — small white dot
+  // Priority 4: in player mode, keep disc-hover size so cursor doesn't vanish
+  // after leaving the progress bar or other UI elements
+  if (playerMode) {
+    const size = pick(DISC_SIZE, isDesktop);
+    if (isPlaying) {
+      return { kind: "free", face: "red", size, icon: null };
+    }
+    return { kind: "free", face: "white", size, icon: null };
+  }
+
+  // Priority 5: default idle — small white dot
   return { kind: "free", face: "white", size: IDLE_SIZE, icon: null };
 }

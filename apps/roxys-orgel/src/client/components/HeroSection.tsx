@@ -150,6 +150,59 @@ export function HeroSection({ progress }: HeroSectionProps) {
         />
       </animated.div>
 
+      {/* Top-right action icons */}
+      <animated.div
+        className="absolute top-6 right-6 md:top-10 md:right-10 z-10 flex items-center gap-4"
+        style={{
+          opacity: progress.to((p) => Math.max(0, (p - 0.5) / 0.5)),
+        }}
+      >
+        {/* Download link */}
+        <a
+          href="https://pan.roxylib.com/%E6%B4%9B%E7%90%AA%E5%B8%8C%E5%9B%BE%E4%B9%A6%E9%A6%86%20-%20%E5%80%9F%E4%B9%A6%E6%9F%9C%E5%8F%B0/%E9%9F%B3%E4%B9%90"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+          title="下载音乐"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="w-5 h-5 text-white/80"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+            />
+          </svg>
+        </a>
+        {/* Language toggle (placeholder) */}
+        <button
+          type="button"
+          className="w-10 h-10 flex items-center justify-center rounded-full bg-white/10 backdrop-blur-sm hover:bg-white/20 transition-colors"
+          title="语言"
+        >
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={1.5}
+            className="w-5 h-5 text-white/80"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M10.5 21l5.25-11.25L21 21m-9-3h7.5M3 5.621a48.474 48.474 0 016-.371m0 0c1.12 0 2.233.038 3.334.114M9 5.25V3m3.334 2.364C11.176 10.658 7.69 15.08 3 17.502m9.334-12.138c.896.061 1.785.147 2.666.257m-4.589 8.495A18.023 18.023 0 0115.75 7.5"
+            />
+          </svg>
+        </button>
+      </animated.div>
+
       <animated.div
         className="relative z-10 flex flex-col items-center"
         style={{
