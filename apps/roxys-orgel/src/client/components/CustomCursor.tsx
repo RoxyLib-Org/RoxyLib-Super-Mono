@@ -4,7 +4,15 @@ import { useEffect, useRef, useState } from "react";
 // ─── Types ──────────────────────────────────────────────────────────────────
 
 type Face = "white" | "red";
-type Icon = "prev" | "play" | "pause" | "next" | "minimize" | "maximize" | "close" | null;
+type Icon =
+  | "prev"
+  | "play"
+  | "pause"
+  | "next"
+  | "minimize"
+  | "maximize"
+  | "close"
+  | null;
 
 interface CursorStyle {
   size: number;
@@ -91,7 +99,8 @@ function resolveStyle(
         : target;
 
     const size = pick(SNAP_SIZE[resolved] ?? [40, 40], ctx.desktop);
-    const face: Face = resolved === "close" || resolved === "pause" ? "red" : "white";
+    const face: Face =
+      resolved === "close" || resolved === "pause" ? "red" : "white";
     // snapTo is computed from element rect in the effect — passed via a ref
     return { size, face, icon: resolved as Icon };
   }
@@ -142,13 +151,30 @@ function CursorIcon({ icon, desktop }: { icon: Icon; desktop: boolean }) {
       );
     case "minimize":
       return (
-        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <svg
+          width={s}
+          height={s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        >
           <path d="M5 12h14" />
         </svg>
       );
     case "maximize":
       return (
-        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <svg
+          width={s}
+          height={s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
           <polyline points="15 3 21 3 21 9" />
           <polyline points="9 21 3 21 3 15" />
           <line x1="21" y1="3" x2="14" y2="10" />
@@ -157,7 +183,15 @@ function CursorIcon({ icon, desktop }: { icon: Icon; desktop: boolean }) {
       );
     case "close":
       return (
-        <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+        <svg
+          width={s}
+          height={s}
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        >
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>
@@ -192,6 +226,7 @@ export function CustomCursor({
   // ── Visibility: hidden only on touch devices ──────────────────────────────
   const [isTouch, setIsTouch] = useState(false);
   const [visible, setVisible] = useState(true);
+  const visibleRef = useRef(true);
 
   // ── Desktop breakpoint ────────────────────────────────────────────────────
   const [isDesktop, setIsDesktop] = useState(false);
@@ -206,7 +241,7 @@ export function CustomCursor({
   // ── Pointer tracking + target detection (ONE event handler) ───────────────
   useEffect(() => {
     const onPointerMove = (e: PointerEvent) => {
-      if (e.pointerType === "touch") return; // ignore touch
+      if (e.pointerType === "touch") return;
       posRef.current = { x: e.clientX, y: e.clientY };
       if (!rafId.current) {
         rafId.current = requestAnimationFrame(() => {
@@ -214,10 +249,15 @@ export function CustomCursor({
           rafId.current = 0;
         });
       }
-      if (!visible) setVisible(true);
+      if (!visibleRef.current) {
+        visibleRef.current = true;
+        setVisible(true);
+      }
 
       // Find the closest [data-cursor] ancestor of the event target
-      const el = (e.target as Element)?.closest?.("[data-cursor]") as HTMLElement | null;
+      const el = (e.target as Element)?.closest?.(
+        "[data-cursor]",
+      ) as HTMLElement | null;
       const newTarget = el?.dataset.cursor ?? null;
       targetElRef.current = el;
       setTarget(newTarget);
@@ -225,8 +265,8 @@ export function CustomCursor({
 
     const onPointerLeave = (e: PointerEvent) => {
       if (e.pointerType === "touch") return;
-      // Only hide when pointer actually leaves the document
       if (!e.relatedTarget && e.target === document.documentElement) {
+        visibleRef.current = false;
         setVisible(false);
       }
     };
@@ -240,23 +280,30 @@ export function CustomCursor({
     window.addEventListener("pointerdown", onPointerDown);
     return () => {
       window.removeEventListener("pointermove", onPointerMove);
-      document.documentElement.removeEventListener("pointerleave", onPointerLeave);
+      document.documentElement.removeEventListener(
+        "pointerleave",
+        onPointerLeave,
+      );
       window.removeEventListener("pointerdown", onPointerDown);
       cancelAnimationFrame(rafId.current);
     };
-  }, [visible]);
+  }, []);
 
   // ── Hide system cursor ────────────────────────────────────────────────────
   useEffect(() => {
     document.body.style.cursor = "none";
-    return () => { document.body.style.cursor = ""; };
+    return () => {
+      document.body.style.cursor = "";
+    };
   }, []);
 
   // ── Derive cursor style via pattern matching ──────────────────────────────
-  const isActiveDisc = hoveredDiscIndex >= 0 && hoveredDiscIndex === centerDiscIndex;
+  const isActiveDisc =
+    hoveredDiscIndex >= 0 && hoveredDiscIndex === centerDiscIndex;
 
   // Map hoveredDiscIndex to target (disc hover comes from VinylDisc mouseenter)
-  const effectiveTarget = hoveredDiscIndex >= 0 && target === null ? "disc" : target;
+  const effectiveTarget =
+    hoveredDiscIndex >= 0 && target === null ? "disc" : target;
 
   const style = resolveStyle(effectiveTarget, {
     isPlaying,
@@ -268,7 +315,13 @@ export function CustomCursor({
 
   // Compute snap position for button targets
   let snapPos: { x: number; y: number } | undefined = style.snapTo;
-  if (!snapPos && targetElRef.current && effectiveTarget && effectiveTarget !== "disc" && effectiveTarget !== "scrub") {
+  if (
+    !snapPos &&
+    targetElRef.current &&
+    effectiveTarget &&
+    effectiveTarget !== "disc" &&
+    effectiveTarget !== "scrub"
+  ) {
     const rect = targetElRef.current.getBoundingClientRect();
     snapPos = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
   }
@@ -296,7 +349,8 @@ export function CustomCursor({
   });
 
   // ── PLAY text rotation ────────────────────────────────────────────────────
-  const showText = effectiveTarget === "disc" && !isSnapped && style.icon === null;
+  const showText =
+    effectiveTarget === "disc" && !isSnapped && style.icon === null;
   const shouldSpin = showText && style.face === "white";
   const rotationRef = useRef(0);
   const playStartRef = useRef(0);
